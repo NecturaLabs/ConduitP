@@ -2,14 +2,17 @@
 # Builds + type-checks server (CI), then triggers Dokploy to build+deploy from source
 #
 # Architecture:
-#   Bun build check -> trigger Dokploy source-deploy via tRPC API
+#   Bun build check -> trigger Dokploy source-deploy via REST API
 #
 # Dokploy is configured to build the Docker image directly from the GitHub repo.
 # Dokploy clones the repo and builds the Docker image on the server.
 #
+# Dokploy exposes a REST API via trpc-openapi at /api/{procedure}.
+# The deploy endpoint is POST /api/application.deploy with body {"applicationId":"..."}
+# Auth: x-api-key header with a Better Auth API key.
+#
 # Required repository secrets:
 #   DOKPLOY_TOKEN    - Dokploy API token (Settings -> API -> Generate token)
-#   DOKPLOY_API_URL  - Dokploy API base URL (e.g. https://dokploy.example.com/api)
 #
 # Required repository variables:
 #   DOKPLOY_APP_ID   - Dokploy application ID for the conduit-api service
@@ -36,6 +39,9 @@ permissions: {}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  DOKPLOY_API: "https://dokploy.ms-mvp.com/api"
 
 jobs:
   build-backend:
@@ -68,20 +74,16 @@ jobs:
           vars.DEPLOY_BACKEND == 'true'
           && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
           && github.ref == 'refs/heads/main'
-        continue-on-error: true
         env:
           DOKPLOY_TOKEN: ${{ secrets.DOKPLOY_TOKEN }}
-          DOKPLOY_API: ${{ secrets.DOKPLOY_API_URL }}
           DOKPLOY_APP_ID: ${{ vars.DOKPLOY_APP_ID }}
         run: |
-          # Dokploy uses tRPC v11. The deploy mutation is at /api/trpc/application.deploy
-          # tRPC v11 single-procedure body format: {"json":{"applicationId":"..."}}
           HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
             --max-time 30 \
-            -X POST "${DOKPLOY_API}/trpc/application.deploy" \
+            -X POST "${DOKPLOY_API}/application.deploy" \
             -H "x-api-key: ${DOKPLOY_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"json\":{\"applicationId\":\"${DOKPLOY_APP_ID}\"}}")
+            -d "{\"applicationId\":\"${DOKPLOY_APP_ID}\"}") \
 
           echo "HTTP status: ${HTTP_STATUS}"
           echo "Response body:"
@@ -90,6 +92,6 @@ jobs:
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "Dokploy deploy triggered successfully (HTTP ${HTTP_STATUS})"
           else
-            echo "::warning::Dokploy deploy returned HTTP ${HTTP_STATUS} - build passed but deploy trigger failed. Check Dokploy logs."
+            echo "::error::Dokploy deploy failed (HTTP ${HTTP_STATUS})"
             exit 1
           fi
