@@ -118,7 +118,7 @@ jobs:
       # ── Create GitHub Release on main branch push ──────────────────────────
       - name: Create Release
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2.4.2  # pinned: v2.5.0 has a known finalize retry bug (softprops/action-gh-release#704)
+        uses: softprops/action-gh-release@v2.5.0  # pinned: v2.5.0 has a known finalize retry bug (softprops/action-gh-release#704)
         with:
           tag_name: android-${{ steps.version.outputs.version }}-build${{ github.run_number }}
           name: "Conduit Android v${{ steps.version.outputs.version }} (build ${{ github.run_number }})"
