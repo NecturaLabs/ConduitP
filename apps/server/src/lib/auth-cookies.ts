@@ -75,8 +75,8 @@ function deriveSameSite(): 'lax' | 'none' {
 export const COOKIE_SAME_SITE = deriveSameSite();
 
 /**
- * Derive a shared cookie domain so cookies set by the API (conduit-api.ms-mvp.com)
- * are readable by the frontend (conduit.ms-mvp.com) after the OAuth redirect.
+ * Derive a shared cookie domain so cookies set by the API are readable by the
+ * frontend after the OAuth redirect (e.g. api.conduit.example.com → conduit.example.com).
  * Returns '.registrable-domain' (dot-prefixed) when app and API share the same
  * registrable domain, undefined otherwise (cookie stays scoped to the API host).
  */
