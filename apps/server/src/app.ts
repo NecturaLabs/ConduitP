@@ -229,60 +229,60 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Start periodic DB cleanup (expired tokens, old events, etc.)
   startCleanupJob(db, fastify.log);
 
-  // Register routes under /api prefix
+  // Register routes
   await fastify.register(async (api) => {
     // Health check
     api.get('/health', async (_request, reply) => {
       return reply.code(200).send({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
-    // Auth routes — /api/auth/*
+    // Auth routes — /auth/*
     await api.register(authRoutes, { prefix: '/auth' });
 
-    // OAuth routes — /api/auth/oauth/* (GitHub + GitLab login, alongside magic link)
+    // OAuth routes — /auth/oauth/* (GitHub + GitLab login, alongside magic link)
     await api.register(oauthRoutes, { prefix: '/auth/oauth' });
 
     // Protected routes with CSRF
     await api.register(async (protectedApi) => {
       protectedApi.addHook('preHandler', requireCsrf);
 
-      // Onboarding — /api/onboarding
+      // Onboarding — /onboarding
       await protectedApi.register(onboardingRoutes, { prefix: '/onboarding' });
 
-      // Sessions — /api/sessions/*
+      // Sessions — /sessions/*
       await protectedApi.register(sessionRoutes, { prefix: '/sessions' });
 
-      // Config — /api/config/*
+      // Config — /config/*
       await protectedApi.register(configRoutes, { prefix: '/config' });
 
-      // Metrics — /api/metrics/*
+      // Metrics — /metrics/*
       await protectedApi.register(metricsRoutes, { prefix: '/metrics' });
 
-      // Instances — /api/instances/*
+      // Instances — /instances/*
       await protectedApi.register(instanceRoutes, { prefix: '/instances' });
 
-      // Models — /api/models (read model list per instance)
+      // Models — /models (read model list per instance)
       await protectedApi.register(modelsRoutes, { prefix: '/models' });
     });
 
-    // SSE events — /api/events (no CSRF for GET)
+    // SSE events — /events (no CSRF for GET)
     await api.register(eventRoutes, { prefix: '/events' });
 
-    // Hooks — /api/hooks (own auth via bearer + HMAC)
+    // Hooks — /hooks (own auth via bearer + HMAC)
     await api.register(hookRoutes, { prefix: '/hooks' });
 
-    // Instance registration — /api/instances/register (own auth via hook token, no CSRF)
+    // Instance registration — /instances/register (own auth via hook token, no CSRF)
     await api.register(instanceRegisterRoute, { prefix: '/instances/register' });
 
-    // Instance deregistration — /api/instances/deregister (own auth via hook token, no CSRF)
+    // Instance deregistration — /instances/deregister (own auth via hook token, no CSRF)
     await api.register(instanceDeregisterRoute, { prefix: '/instances/deregister' });
 
-    // Config agent endpoints — /api/config/pending and /api/config/ack (own auth via bearer token)
+    // Config agent endpoints — /config/pending and /config/ack (own auth via bearer token)
     await api.register(configAgentRoutes, { prefix: '/config' });
 
-    // Prompt relay — /api/prompts/* (own auth via hook token, no CSRF)
+    // Prompt relay — /prompts/* (own auth via hook token, no CSRF)
     await api.register(promptRelayRoutes, { prefix: '/prompts' });
-  }, { prefix: '/api' });
+  });
 
   return fastify;
 }

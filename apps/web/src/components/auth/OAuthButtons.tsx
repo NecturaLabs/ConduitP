@@ -73,7 +73,7 @@ export function OAuthButtons({ className }: OAuthButtonsProps) {
   useEffect(() => {
     // Resolve the base URL the same way the API client does so mobile (custom
     // server URL) and web (VITE_API_URL) both work correctly.
-    const base = isMobile ? `${getStoredServerUrl()}/api` : resolveBaseUrl();
+    const base = isMobile ? getStoredServerUrl() : resolveBaseUrl();
 
     fetch(`${base}/auth/oauth/providers`, {
       // No credentials needed — this is a public config endpoint.
@@ -100,7 +100,7 @@ export function OAuthButtons({ className }: OAuthButtonsProps) {
   // input or DOM text influences the href value.
   // codeql[js/xss-through-dom] — false positive: no DOM text reinterpretation
   function startUrl(provider: 'github' | 'gitlab'): string {
-    const base = isMobile ? `${getStoredServerUrl()}/api` : resolveBaseUrl();
+    const base = isMobile ? getStoredServerUrl() : resolveBaseUrl();
     return `${base}/auth/oauth/${provider}/start`;
   }
 

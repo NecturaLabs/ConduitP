@@ -13,9 +13,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const REFRESH_COOLDOWN_MS = 5_000;
-const API_URL = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
-  : window.location.origin;
+const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 
@@ -666,12 +664,12 @@ function UninstallHooks() {
 
   const commands: Record<string, Record<string, string>> = {
     claude: {
-      bash: `curl -fsSL ${API_URL}/api/hooks/uninstall-claude.sh | bash`,
-      powershell: `irm ${API_URL}/api/hooks/uninstall-claude.ps1 | iex`,
+      bash: `curl -fsSL ${API_URL}/hooks/uninstall-claude.sh | bash`,
+      powershell: `irm ${API_URL}/hooks/uninstall-claude.ps1 | iex`,
     },
     opencode: {
-      bash: `curl -fsSL ${API_URL}/api/hooks/uninstall-opencode.sh | bash`,
-      powershell: `irm ${API_URL}/api/hooks/uninstall-opencode.ps1 | iex`,
+      bash: `curl -fsSL ${API_URL}/hooks/uninstall-opencode.sh | bash`,
+      powershell: `irm ${API_URL}/hooks/uninstall-opencode.ps1 | iex`,
     },
   };
 

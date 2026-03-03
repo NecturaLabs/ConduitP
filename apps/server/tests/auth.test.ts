@@ -83,7 +83,7 @@ describe('Auth Routes', () => {
       const app = getApp();
       const res = await app.inject({
         method: 'POST',
-        url: '/api/auth/magic-link',
+        url: '/auth/magic-link',
         payload: { email: 'user@example.com' },
       });
 
@@ -96,7 +96,7 @@ describe('Auth Routes', () => {
       const app = getApp();
       const res = await app.inject({
         method: 'POST',
-        url: '/api/auth/magic-link',
+        url: '/auth/magic-link',
         payload: { email: 'not-an-email' },
       });
 
@@ -110,13 +110,13 @@ describe('Auth Routes', () => {
 
       const res1 = await app.inject({
         method: 'POST',
-        url: '/api/auth/magic-link',
+        url: '/auth/magic-link',
         payload: { email: 'exists@example.com' },
       });
 
       const res2 = await app.inject({
         method: 'POST',
-        url: '/api/auth/magic-link',
+        url: '/auth/magic-link',
         payload: { email: 'doesnotexist@example.com' },
       });
 
@@ -137,9 +137,9 @@ describe('Auth Routes', () => {
         VALUES (?, ?, ?, ?)
       `).run(id, hash, 'verify@example.com', expiresAt);
 
-      const res = await app.inject({
-        method: 'GET',
-        url: `/api/auth/verify?token=${raw}`,
+       const res = await app.inject({
+         method: 'GET',
+         url: `/auth/verify?token=${raw}`,
       });
 
       expect(res.statusCode).toBe(302);
@@ -159,9 +159,9 @@ describe('Auth Routes', () => {
         VALUES (?, ?, ?, 1, ?)
       `).run(id, hash, 'used@example.com', expiresAt);
 
-      const res = await app.inject({
-        method: 'GET',
-        url: `/api/auth/verify?token=${raw}`,
+       const res = await app.inject({
+         method: 'GET',
+         url: `/auth/verify?token=${raw}`,
       });
 
       expect(res.statusCode).toBe(401);
@@ -179,20 +179,20 @@ describe('Auth Routes', () => {
         VALUES (?, ?, ?, ?)
       `).run(id, hash, 'expired@example.com', expiresAt);
 
-      const res = await app.inject({
-        method: 'GET',
-        url: `/api/auth/verify?token=${raw}`,
+       const res = await app.inject({
+         method: 'GET',
+         url: `/auth/verify?token=${raw}`,
       });
 
       expect(res.statusCode).toBe(401);
       expect(res.json().message).toContain('expired');
     });
 
-    it('should reject an invalid token', async () => {
-      const app = getApp();
-      const res = await app.inject({
-        method: 'GET',
-        url: '/api/auth/verify?token=invalid-token-value',
+     it('should reject an invalid token', async () => {
+       const app = getApp();
+       const res = await app.inject({
+         method: 'GET',
+         url: '/auth/verify?token=invalid-token-value',
       });
 
       expect(res.statusCode).toBe(401);
@@ -206,9 +206,9 @@ describe('Auth Routes', () => {
       const { refreshToken } = createTestTokens(user);
 
       const res = await app.inject({
-        method: 'POST',
-        url: '/api/auth/refresh',
-        cookies: { conduit_refresh: refreshToken },
+         method: 'POST',
+         url: '/auth/refresh',
+         cookies: { conduit_refresh: refreshToken },
       });
 
       expect(res.statusCode).toBe(200);
@@ -223,18 +223,18 @@ describe('Auth Routes', () => {
       const { refreshToken, familyId } = createTestTokens(user);
 
       // First use — should succeed
-      const res1 = await app.inject({
-        method: 'POST',
-        url: '/api/auth/refresh',
-        cookies: { conduit_refresh: refreshToken },
+       const res1 = await app.inject({
+         method: 'POST',
+         url: '/auth/refresh',
+         cookies: { conduit_refresh: refreshToken },
       });
       expect(res1.statusCode).toBe(200);
 
       // Second use of same token — should detect reuse and revoke family
-      const res2 = await app.inject({
-        method: 'POST',
-        url: '/api/auth/refresh',
-        cookies: { conduit_refresh: refreshToken },
+       const res2 = await app.inject({
+         method: 'POST',
+         url: '/auth/refresh',
+         cookies: { conduit_refresh: refreshToken },
       });
       expect(res2.statusCode).toBe(401);
       expect(res2.json().message).toContain('reuse detected');
@@ -249,11 +249,11 @@ describe('Auth Routes', () => {
       }
     });
 
-    it('should reject request without refresh cookie', async () => {
-      const app = getApp();
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/auth/refresh',
+     it('should reject request without refresh cookie', async () => {
+       const app = getApp();
+       const res = await app.inject({
+         method: 'POST',
+         url: '/auth/refresh',
       });
 
       expect(res.statusCode).toBe(401);
@@ -266,10 +266,10 @@ describe('Auth Routes', () => {
       const user = createTestUser();
       const { accessToken, refreshToken } = createTestTokens(user);
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/auth/logout',
-        cookies: {
+       const res = await app.inject({
+         method: 'POST',
+         url: '/auth/logout',
+         cookies: {
           conduit_access: accessToken,
           conduit_refresh: refreshToken,
         },
@@ -292,10 +292,10 @@ describe('Auth Routes', () => {
       const user = createTestUser();
       const { accessToken } = createTestTokens(user);
 
-      const res = await app.inject({
-        method: 'GET',
-        url: '/api/auth/me',
-        cookies: { conduit_access: accessToken },
+       const res = await app.inject({
+         method: 'GET',
+         url: '/auth/me',
+         cookies: { conduit_access: accessToken },
       });
 
       expect(res.statusCode).toBe(200);
@@ -308,7 +308,7 @@ describe('Auth Routes', () => {
       const app = getApp();
       const res = await app.inject({
         method: 'GET',
-        url: '/api/auth/me',
+        url: '/auth/me',
       });
 
       expect(res.statusCode).toBe(401);

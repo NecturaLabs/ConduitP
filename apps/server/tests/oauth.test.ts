@@ -99,9 +99,9 @@ describe('OAuth Service', () => {
 
 describe('OAuth Routes', () => {
   describe('GET /api/auth/oauth/providers', () => {
-    it('returns github: false and gitlab: false when no providers are configured', async () => {
-      const app = getApp();
-      const res = await app.inject({ method: 'GET', url: '/api/auth/oauth/providers' });
+     it('returns github: false and gitlab: false when no providers are configured', async () => {
+       const app = getApp();
+       const res = await app.inject({ method: 'GET', url: '/auth/oauth/providers' });
 
       expect(res.statusCode).toBe(200);
       const body = res.json() as { github: boolean; gitlab: boolean };
@@ -111,23 +111,23 @@ describe('OAuth Routes', () => {
     });
   });
 
-  describe('GET /api/auth/oauth/:provider/start', () => {
-    it('returns 503 for github when not configured', async () => {
-      const app = getApp();
-      const res = await app.inject({ method: 'GET', url: '/api/auth/oauth/github/start' });
+   describe('GET /api/auth/oauth/:provider/start', () => {
+     it('returns 503 for github when not configured', async () => {
+       const app = getApp();
+       const res = await app.inject({ method: 'GET', url: '/auth/oauth/github/start' });
       expect(res.statusCode).toBe(503);
       expect(res.json().error).toBe('OAuthNotConfigured');
     });
 
-    it('returns 503 for gitlab when not configured', async () => {
-      const app = getApp();
-      const res = await app.inject({ method: 'GET', url: '/api/auth/oauth/gitlab/start' });
+     it('returns 503 for gitlab when not configured', async () => {
+       const app = getApp();
+       const res = await app.inject({ method: 'GET', url: '/auth/oauth/gitlab/start' });
       expect(res.statusCode).toBe(503);
     });
 
-    it('redirects to invalid_provider error for an unknown provider', async () => {
-      const app = getApp();
-      const res = await app.inject({ method: 'GET', url: '/api/auth/oauth/unknown/start' });
+     it('redirects to invalid_provider error for an unknown provider', async () => {
+       const app = getApp();
+       const res = await app.inject({ method: 'GET', url: '/auth/oauth/unknown/start' });
       // Redirects to frontend error page
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toContain('error=invalid_provider');
@@ -143,9 +143,9 @@ describe('OAuth Routes', () => {
       config.githubClientId     = 'test-client-id';
       config.githubClientSecret = 'test-client-secret';
 
-      try {
-        const res = await app.inject({ method: 'GET', url: '/api/auth/oauth/github/start' });
-        expect(res.statusCode).toBe(302);
+       try {
+         const res = await app.inject({ method: 'GET', url: '/auth/oauth/github/start' });
+         expect(res.statusCode).toBe(302);
 
         const location = res.headers['location'] as string;
         expect(location).toContain('github.com/login/oauth/authorize');
@@ -194,21 +194,21 @@ describe('OAuth Routes', () => {
       return { raw, codeVerifier: verifier };
     }
 
-    it('redirects to invalid_state when state param is missing', async () => {
-      const app = getApp();
-      const res = await app.inject({
-        method: 'GET',
-        url:    '/api/auth/oauth/github/callback?code=abc123',
+     it('redirects to invalid_state when state param is missing', async () => {
+       const app = getApp();
+       const res = await app.inject({
+         method: 'GET',
+         url:    '/auth/oauth/github/callback?code=abc123',
       });
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toContain('error=invalid_state');
     });
 
-    it('redirects to invalid_state when state does not match any DB row', async () => {
-      const app = getApp();
-      const res = await app.inject({
-        method: 'GET',
-        url:    '/api/auth/oauth/github/callback?code=abc123&state=nonexistent',
+     it('redirects to invalid_state when state does not match any DB row', async () => {
+       const app = getApp();
+       const res = await app.inject({
+         method: 'GET',
+         url:    '/auth/oauth/github/callback?code=abc123&state=nonexistent',
       });
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toContain('error=invalid_state');
@@ -245,11 +245,11 @@ describe('OAuth Routes', () => {
       expect(res.headers['location']).toContain('error=invalid_state');
     });
 
-    it('redirects to provider_error when the provider sends an error param', async () => {
-      const app = getApp();
-      const res = await app.inject({
-        method: 'GET',
-        url:    '/api/auth/oauth/github/callback?error=access_denied',
+     it('redirects to provider_error when the provider sends an error param', async () => {
+       const app = getApp();
+       const res = await app.inject({
+         method: 'GET',
+         url:    '/auth/oauth/github/callback?error=access_denied',
       });
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toContain('error=provider_error');
@@ -516,9 +516,9 @@ describe('OAuth Routes', () => {
       expect(before).toHaveLength(1);
 
       const res = await app.inject({
-        method:  'DELETE',
-        url:     '/api/auth/account',
-        headers: {
+         method:  'DELETE',
+         url:     '/auth/account',
+         headers: {
           Cookie:            `conduit_access=${accessToken}`,
           'X-Requested-With': 'XMLHttpRequest',
         },

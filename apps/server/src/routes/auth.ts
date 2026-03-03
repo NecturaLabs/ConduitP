@@ -351,7 +351,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       `).run(storedToken.family_id);
 
       reply.clearCookie('conduit_access', { path: '/' });
-      reply.clearCookie('conduit_refresh', { path: '/api/auth/refresh' });
+      reply.clearCookie('conduit_refresh', { path: '/auth/refresh' });
 
       const error: ApiError = {
         error: 'Unauthorized',
@@ -452,7 +452,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     reply.clearCookie('conduit_access', { path: '/' });
-    reply.clearCookie('conduit_refresh', { path: '/api/auth/refresh' });
+    reply.clearCookie('conduit_refresh', { path: '/auth/refresh' });
 
     const response: ApiSuccess<{ message: string }> = {
       data: { message: 'Logged out successfully' },
@@ -526,7 +526,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Clear cookies
     reply.clearCookie('conduit_access', { path: '/' });
-    reply.clearCookie('conduit_refresh', { path: '/api/auth/refresh' });
+    reply.clearCookie('conduit_refresh', { path: '/auth/refresh' });
 
     const response: ApiSuccess<{ message: string }> = {
       data: { message: 'Account and all associated data deleted' },

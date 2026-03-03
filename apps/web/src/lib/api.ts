@@ -17,14 +17,14 @@ export function setStoredServerUrl(url: string): void {
 /** Resolved per-request so URL changes take effect immediately without reload. */
 export function resolveBaseUrl(): string {
   if (isMobile) {
-    return `${getStoredServerUrl()}/api`;
+    return getStoredServerUrl();
   }
   return import.meta.env.VITE_API_URL ?? '/api';
 }
 
 // Keep BASE_URL as a non-null export for the rare direct usages (tryRefresh, etc.)
 // In mobile mode it resolves dynamically; in web mode it's a build-time constant.
-export const BASE_URL = isMobile ? DEFAULT_SERVER + '/api' : (import.meta.env.VITE_API_URL ?? '/api');
+export const BASE_URL = isMobile ? DEFAULT_SERVER : (import.meta.env.VITE_API_URL ?? '/api');
 
 class ApiClientError extends Error {
   constructor(

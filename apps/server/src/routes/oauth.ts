@@ -78,7 +78,7 @@ function getProviderCredentials(provider: OAuthProvider): { clientId: string; cl
 }
 
 function buildCallbackUrl(provider: OAuthProvider): string {
-  return `${config.apiUrl}/api/auth/oauth/${provider}/callback`;
+  return `${config.apiUrl}/auth/oauth/${provider}/callback`;
 }
 
 /**

@@ -123,7 +123,7 @@ export function cookieOptionsRefresh(requestOrigin: string | undefined) {
     httpOnly: true,
     secure: true,
     sameSite: resolveSameSite(requestOrigin),
-    path: '/api/auth/refresh',
+    path: '/auth/refresh',
     maxAge: REFRESH_TOKEN_TTL,
     ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
   } as const;

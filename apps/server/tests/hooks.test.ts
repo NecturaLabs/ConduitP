@@ -28,15 +28,15 @@ const samplePayload: HookPayload = {
 };
 
 describe('Hooks Routes', () => {
-  describe('POST /api/hooks', () => {
-    it('should accept a valid webhook with correct bearer + HMAC + timestamp', async () => {
-      const app = getApp();
-      const { hookToken } = getTestSecrets();
-      const { payload, headers } = createValidHookRequest(hookToken, samplePayload);
+   describe('POST /api/hooks', () => {
+     it('should accept a valid webhook with correct bearer + HMAC + timestamp', async () => {
+       const app = getApp();
+       const { hookToken } = getTestSecrets();
+       const { payload, headers } = createValidHookRequest(hookToken, samplePayload);
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
         payload,
         headers,
       });
@@ -64,13 +64,13 @@ describe('Hooks Routes', () => {
       const { hookToken } = getTestSecrets();
       const signature = createHmac('sha256', hookToken).update(signingData).digest('hex');
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
-        payload: samplePayload,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer wrong-token',
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
+         payload: samplePayload,
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': 'Bearer wrong-token',
           'X-Conduit-Timestamp': timestamp,
           'X-Conduit-Signature': signature,
         },
@@ -87,28 +87,28 @@ describe('Hooks Routes', () => {
       const rawBody = JSON.stringify(samplePayload);
       const signature = createHmac('sha256', hookToken).update(`${timestamp}.${rawBody}`).digest('hex');
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
-        payload: samplePayload,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Conduit-Timestamp': timestamp,
-          'X-Conduit-Signature': signature,
-        },
-      });
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
+         payload: samplePayload,
+         headers: {
+           'Content-Type': 'application/json',
+           'X-Conduit-Timestamp': timestamp,
+           'X-Conduit-Signature': signature,
+         },
+       });
 
-      expect(res.statusCode).toBe(401);
-    });
+       expect(res.statusCode).toBe(401);
+     });
 
-    it('should reject request with invalid HMAC signature', async () => {
-      const app = getApp();
-      const { hookToken } = getTestSecrets();
-      const timestamp = Date.now().toString();
+     it('should reject request with invalid HMAC signature', async () => {
+       const app = getApp();
+       const { hookToken } = getTestSecrets();
+       const timestamp = Date.now().toString();
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
         payload: samplePayload,
         headers: {
           'Content-Type': 'application/json',
@@ -130,33 +130,33 @@ describe('Hooks Routes', () => {
       const signingData = `${expiredTimestamp}.${rawBody}`;
       const signature = createHmac('sha256', hookToken).update(signingData).digest('hex');
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
-        payload: samplePayload,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${hookToken}`,
-          'X-Conduit-Timestamp': expiredTimestamp,
-          'X-Conduit-Signature': signature,
-        },
-      });
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
+         payload: samplePayload,
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${hookToken}`,
+           'X-Conduit-Timestamp': expiredTimestamp,
+           'X-Conduit-Signature': signature,
+         },
+       });
 
-      expect(res.statusCode).toBe(401);
-      expect(res.json().message).toContain('timestamp');
-    });
+       expect(res.statusCode).toBe(401);
+       expect(res.json().message).toContain('timestamp');
+     });
 
-    it('should reject request with future timestamp (>5 min)', async () => {
-      const app = getApp();
-      const { hookToken } = getTestSecrets();
-      const futureTimestamp = (Date.now() + 6 * 60 * 1000).toString(); // 6 minutes in the future
-      const rawBody = JSON.stringify(samplePayload);
-      const signingData = `${futureTimestamp}.${rawBody}`;
-      const signature = createHmac('sha256', hookToken).update(signingData).digest('hex');
+     it('should reject request with future timestamp (>5 min)', async () => {
+       const app = getApp();
+       const { hookToken } = getTestSecrets();
+       const futureTimestamp = (Date.now() + 6 * 60 * 1000).toString(); // 6 minutes in the future
+       const rawBody = JSON.stringify(samplePayload);
+       const signingData = `${futureTimestamp}.${rawBody}`;
+       const signature = createHmac('sha256', hookToken).update(signingData).digest('hex');
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
         payload: samplePayload,
         headers: {
           'Content-Type': 'application/json',
@@ -173,29 +173,29 @@ describe('Hooks Routes', () => {
       const app = getApp();
       const { hookToken } = getTestSecrets();
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
-        payload: samplePayload,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${hookToken}`,
-          'X-Conduit-Signature': 'doesnotmatter',
-        },
-      });
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
+         payload: samplePayload,
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${hookToken}`,
+           'X-Conduit-Signature': 'doesnotmatter',
+         },
+       });
 
-      expect(res.statusCode).toBe(401);
-      expect(res.json().message).toContain('Timestamp');
-    });
+       expect(res.statusCode).toBe(401);
+       expect(res.json().message).toContain('Timestamp');
+     });
 
-    it('should reject request with missing signature', async () => {
-      const app = getApp();
-      const { hookToken } = getTestSecrets();
-      const timestamp = Date.now().toString();
+     it('should reject request with missing signature', async () => {
+       const app = getApp();
+       const { hookToken } = getTestSecrets();
+       const timestamp = Date.now().toString();
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
         payload: samplePayload,
         headers: {
           'Content-Type': 'application/json',
@@ -217,38 +217,38 @@ describe('Hooks Routes', () => {
       const signingData = `${timestamp}.${rawBody}`;
       const signature = createHmac('sha256', hookToken).update(signingData).digest('hex');
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/hooks',
-        payload: invalidPayload,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${hookToken}`,
-          'X-Conduit-Timestamp': timestamp,
-          'X-Conduit-Signature': signature,
-        },
-      });
+       const res = await app.inject({
+         method: 'POST',
+         url: '/hooks',
+         payload: invalidPayload,
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${hookToken}`,
+           'X-Conduit-Timestamp': timestamp,
+           'X-Conduit-Signature': signature,
+         },
+       });
 
-      expect(res.statusCode).toBe(400);
-    });
+       expect(res.statusCode).toBe(400);
+     });
 
-    it('should store multiple events independently', async () => {
-      const app = getApp();
-      const { hookToken } = getTestSecrets();
+     it('should store multiple events independently', async () => {
+       const app = getApp();
+       const { hookToken } = getTestSecrets();
 
-      const payloads: HookPayload[] = [
-        { event: 'SessionStart', timestamp: new Date().toISOString(), sessionId: 'sess-1', data: {} },
-        { event: 'PreToolUse', timestamp: new Date().toISOString(), sessionId: 'sess-1', data: { tool: 'read' } },
-        { event: 'PostToolUse', timestamp: new Date().toISOString(), sessionId: 'sess-1', data: { tool: 'read' } },
-      ];
+       const payloads: HookPayload[] = [
+         { event: 'SessionStart', timestamp: new Date().toISOString(), sessionId: 'sess-1', data: {} },
+         { event: 'PreToolUse', timestamp: new Date().toISOString(), sessionId: 'sess-1', data: { tool: 'read' } },
+         { event: 'PostToolUse', timestamp: new Date().toISOString(), sessionId: 'sess-1', data: { tool: 'read' } },
+       ];
 
-      const ids: string[] = [];
+       const ids: string[] = [];
 
-      for (const payload of payloads) {
-        const { headers } = createValidHookRequest(hookToken, payload);
-        const res = await app.inject({
-          method: 'POST',
-          url: '/api/hooks',
+       for (const payload of payloads) {
+         const { headers } = createValidHookRequest(hookToken, payload);
+         const res = await app.inject({
+           method: 'POST',
+           url: '/hooks',
           payload,
           headers,
         });

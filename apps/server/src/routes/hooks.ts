@@ -189,23 +189,7 @@ TS=$(date +%s)000
 PAYLOAD="{\\"event\\":\\"$EVENT\\",\\"timestamp\\":\\"$ISO_NOW\\",\\"sessionId\\":\\"$SESSION\\",\\"data\\":$BODY}"
 SIG=$(printf '%s' "\${TS}.\${PAYLOAD}" | openssl dgst -sha256 -hmac "$TOKEN" -hex | awk '{print $NF}')
 
-curl -sX POST "\${API_URL}/api/hooks" \\
-  -H "Authorization: Bearer \${TOKEN}" \\
-  -H "Content-Type: application/json" \\
-  -H "X-Conduit-Timestamp: \${TS}" \\
-  -H "X-Conduit-Signature: sha256=\${SIG}" \\
-  -d "\${PAYLOAD}" > /dev/null 2>&1 || true
-
-# On SessionStart: sync config file to Conduit + apply any pending update from dashboard
-if [[ "$EVENT" == "SessionStart" ]]; then
-  SETTINGS="$HOME/.claude/settings.json"
-  if [[ -f "$SETTINGS" ]]; then
-    CONFIG_CONTENT=$(cat "$SETTINGS")
-    ISO2=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-    TS2=$(date +%s)000
-    CONFIG_PAYLOAD="{\\"event\\":\\"config.sync\\",\\"timestamp\\":\\"$ISO2\\",\\"sessionId\\":\\"conduit-config\\",\\"data\\":{\\"agentType\\":\\"claude-code\\",\\"content\\":$(python3 -c "import sys,json; print(json.dumps(open(sys.argv[1]).read()))" "$SETTINGS")}}"
-    SIG2=$(printf '%s' "\${TS2}.\${CONFIG_PAYLOAD}" | openssl dgst -sha256 -hmac "$TOKEN" -hex | awk '{print $NF}')
-    curl -sX POST "\${API_URL}/api/hooks" \\
+    curl -sX POST "\${API_URL}/hooks" \\
       -H "Authorization: Bearer \${TOKEN}" \\
       -H "Content-Type: application/json" \\
       -H "X-Conduit-Timestamp: \${TS2}" \\
@@ -214,7 +198,7 @@ if [[ "$EVENT" == "SessionStart" ]]; then
   fi
 
   # Check for pending config update from dashboard
-  PENDING=$(curl -sf "\${API_URL}/api/config/pending" \\
+  PENDING=$(curl -sf "\${API_URL}/config/pending" \\
     -H "Authorization: Bearer \${TOKEN}" 2>/dev/null || echo "")
   if [[ -n "$PENDING" ]]; then
     CONTENT=$(printf '%s' "$PENDING" | python3 -c "
@@ -228,7 +212,7 @@ except: pass
     if [[ -n "$CONTENT" ]]; then
       mkdir -p "$(dirname "$SETTINGS")"
       printf '%s' "$CONTENT" > "$SETTINGS"
-      curl -sf -X POST "\${API_URL}/api/config/ack" \\
+      curl -sf -X POST "\${API_URL}/config/ack" \\
         -H "Authorization: Bearer \${TOKEN}" \\
         -H "Content-Type: application/json" \\
         -d '{}' > /dev/null 2>&1 || true
@@ -274,8 +258,8 @@ $hmac.Key = $keyBytes
 $sig      = ($hmac.ComputeHash($msgBytes) | ForEach-Object { $_.ToString("x2") }) -join ""
 
 try {
-  Invoke-RestMethod -Method Post \`
-    -Uri "$API_URL/api/hooks" \`
+   Invoke-RestMethod -Method Post \`
+     -Uri "$API_URL/hooks" \`
     -Headers @{
       "Authorization"       = "Bearer $TOKEN"
       "X-Conduit-Timestamp" = "$ts"
@@ -299,21 +283,21 @@ if ($event -eq "SessionStart") {
       $hmac2 = New-Object System.Security.Cryptography.HMACSHA256
       $hmac2.Key = $keyBytes
       $sig2 = ($hmac2.ComputeHash($msgBytes2) | ForEach-Object { $_.ToString("x2") }) -join ""
-      Invoke-RestMethod -Method Post -Uri "$API_URL/api/hooks" \`
-        -Headers @{ "Authorization" = "Bearer $TOKEN"; "X-Conduit-Timestamp" = "$ts2"; "X-Conduit-Signature" = "sha256=$sig2" } \`
-        -ContentType "application/json" -Body $configPayload | Out-Null
+       Invoke-RestMethod -Method Post -Uri "$API_URL/hooks" \`
+         -Headers @{ "Authorization" = "Bearer $TOKEN"; "X-Conduit-Timestamp" = "$ts2"; "X-Conduit-Signature" = "sha256=$sig2" } \`
+         -ContentType "application/json" -Body $configPayload | Out-Null
     } catch { }
   }
 
   # Check for pending config update from dashboard
   try {
-    $pending = Invoke-RestMethod -Uri "$API_URL/api/config/pending" \`
+     $pending = Invoke-RestMethod -Uri "$API_URL/config/pending" \`
       -Headers @{ "Authorization" = "Bearer $TOKEN" }
     $pendingContent = $pending.data.content
     if ($pendingContent) {
       New-Item -ItemType Directory -Force -Path (Split-Path $settingsPath) | Out-Null
       Set-Content -Path $settingsPath -Value $pendingContent -Encoding UTF8
-      Invoke-RestMethod -Method Post -Uri "$API_URL/api/config/ack" \`
+       Invoke-RestMethod -Method Post -Uri "$API_URL/config/ack" \`
         -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
         -ContentType "application/json" -Body '{}' | Out-Null
     }
@@ -366,7 +350,7 @@ printf '%s' '${pyB64}' | base64 -d | python3 - "$HELPER" "$SETTINGS"
 
 # ── Register this instance with Conduit ────────────────────────────────────────
 MACHINE_NAME=$(hostname 2>/dev/null || echo "linux-machine")
-curl -sf -X POST "\${API_URL}/api/instances/register" \\
+curl -sf -X POST "\${API_URL}/instances/register" \\
   -H "Authorization: Bearer \${TOKEN}" \\
   -H "Content-Type: application/json" \\
   -d "{\\"name\\":\\"$MACHINE_NAME\\",\\"type\\":\\"claude-code\\"}" > /dev/null && \\
@@ -434,7 +418,7 @@ Write-Host "  Updated  -> $SettingsPath" -ForegroundColor Green
 $machineName = $env:COMPUTERNAME
 if (-not $machineName) { $machineName = "windows-machine" }
 try {
-  Invoke-RestMethod -Method Post -Uri "$API_URL/api/instances/register" \`
+  Invoke-RestMethod -Method Post -Uri "$API_URL/instances/register" \`
     -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
     -ContentType "application/json" \`
     -Body (ConvertTo-Json @{ name = $machineName; type = "claude-code" } -Compress) | Out-Null
@@ -660,7 +644,7 @@ printf '%s' '${pluginB64}' | base64 -d > "$PLUGIN_FILE"
 echo "  Saved plugin -> $PLUGIN_FILE"
 
 # ── Register this instance with Conduit ────────────────────────────────────────
-curl -sf -X POST "\${API_URL}/api/instances/register" \\
+curl -sf -X POST "\${API_URL}/instances/register" \\
   -H "Authorization: Bearer \${TOKEN}" \\
   -H "Content-Type: application/json" \\
   -d "{\\"name\\":\\"$MACHINE_NAME\\",\\"type\\":\\"opencode\\"}" > /dev/null && \\
@@ -701,7 +685,7 @@ fi
 # ── Deregister this instance from Conduit ─────────────────────────────────────
 if [[ -n "$TOKEN" ]]; then
   MACHINE_NAME=$(hostname 2>/dev/null || echo "opencode-machine")
-  curl -sf -X POST "\${API_URL}/api/instances/deregister" \\
+  curl -sf -X POST "\${API_URL}/instances/deregister" \\
     -H "Authorization: Bearer \${TOKEN}" \\
     -H "Content-Type: application/json" \\
     -d "{\\"name\\":\\"$MACHINE_NAME\\",\\"type\\":\\"opencode\\"}" > /dev/null && \\
@@ -743,15 +727,15 @@ ${pluginContent.replace(/'/g, "''")}
 Write-Host "  Saved plugin -> $PluginFile" -ForegroundColor Green
 
 # ── Register this instance with Conduit ───────────────────────────────────────
-try {
-  Invoke-RestMethod -Method Post -Uri "$API_URL/api/instances/register" \`
-    -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
-    -ContentType "application/json" \`
-    -Body (ConvertTo-Json @{ name = $MachineName; type = "opencode" } -Compress) | Out-Null
-  Write-Host "  Registered instance: $MachineName" -ForegroundColor Green
-} catch {
-  Write-Host "  (Could not register instance — plugin will still work)" -ForegroundColor Yellow
-}
+  try {
+     Invoke-RestMethod -Method Post -Uri "$API_URL/instances/register" \`
+       -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
+       -ContentType "application/json" \`
+       -Body (ConvertTo-Json @{ name = $MachineName; type = "opencode" } -Compress) | Out-Null
+   Write-Host "  Registered instance: $MachineName" -ForegroundColor Green
+ } catch {
+   Write-Host "  (Could not register instance — plugin will still work)" -ForegroundColor Yellow
+ }
 ${mcpSetupPs1(token, apiUrl)}
 Write-Host ""
 Write-Host "Done! Conduit plugin is active for all future OpenCode sessions." -ForegroundColor Cyan
@@ -789,15 +773,15 @@ if (Test-Path $PluginFile) {
 # ── Deregister this instance from Conduit ─────────────────────────────────────
 if ($TOKEN) {
   $MachineName = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { "opencode-machine" }
-  try {
-    Invoke-RestMethod -Method Post -Uri "$API_URL/api/instances/deregister" \`
-      -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
-      -ContentType "application/json" \`
-      -Body (ConvertTo-Json @{ name = $MachineName; type = "opencode" } -Compress) | Out-Null
-    Write-Host "  Deregistered instance: $MachineName" -ForegroundColor Green
-  } catch {
-    Write-Host "  (Could not deregister instance — it may have been removed already)" -ForegroundColor Yellow
-  }
+   try {
+     Invoke-RestMethod -Method Post -Uri "$API_URL/instances/deregister" \`
+       -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
+       -ContentType "application/json" \`
+       -Body (ConvertTo-Json @{ name = $MachineName; type = "opencode" } -Compress) | Out-Null
+     Write-Host "  Deregistered instance: $MachineName" -ForegroundColor Green
+   } catch {
+     Write-Host "  (Could not deregister instance — it may have been removed already)" -ForegroundColor Yellow
+   }
 } else {
   Write-Host "  (No token found — skipping instance deregistration)" -ForegroundColor Yellow
 }
@@ -874,10 +858,10 @@ fi
 # ── Deregister this instance from Conduit ─────────────────────────────────────
 if [[ -n "$TOKEN" ]]; then
   MACHINE_NAME=$(hostname 2>/dev/null || echo "linux-machine")
-  curl -sf -X POST "\${API_URL}/api/instances/deregister" \\
-    -H "Authorization: Bearer \${TOKEN}" \\
-    -H "Content-Type: application/json" \\
-    -d "{\\"name\\":\\"$MACHINE_NAME\\",\\"type\\":\\"claude-code\\"}" > /dev/null && \\
+   curl -sf -X POST "\${API_URL}/instances/deregister" \\
+     -H "Authorization: Bearer \${TOKEN}" \\
+     -H "Content-Type: application/json" \\
+     -d "{\\"name\\":\\"$MACHINE_NAME\\",\\"type\\":\\"claude-code\\"}" > /dev/null && \\
     echo "  Deregistered instance: $MACHINE_NAME" || \\
     echo "  (Could not deregister instance — it may have been removed already)"
 else
@@ -964,11 +948,11 @@ if (Test-Path $SettingsPath) {
 # ── Deregister this instance from Conduit ─────────────────────────────────────
 if ($TOKEN) {
   $MachineName = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { "windows-machine" }
-  try {
-    Invoke-RestMethod -Method Post -Uri "$API_URL/api/instances/deregister" \`
-      -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
-      -ContentType "application/json" \`
-      -Body (ConvertTo-Json @{ name = $MachineName; type = "claude-code" } -Compress) | Out-Null
+   try {
+     Invoke-RestMethod -Method Post -Uri "$API_URL/instances/deregister" \`
+       -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
+       -ContentType "application/json" \`
+       -Body (ConvertTo-Json @{ name = $MachineName; type = "claude-code" } -Compress) | Out-Null
     Write-Host "  Deregistered instance: $MachineName" -ForegroundColor Green
   } catch {
     Write-Host "  (Could not deregister instance — it may have been removed already)" -ForegroundColor Yellow
@@ -1211,7 +1195,7 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
 
     const script = `#!/usr/bin/env bash
 # Conduit Claude Code hook installer — device flow bootstrap
-# Usage: curl -fsSL ${apiUrl}/api/hooks/install-claude.sh | bash
+# Usage: curl -fsSL ${apiUrl}/hooks/install-claude.sh | bash
 set -euo pipefail
 
 API_URL="${apiUrl}"
@@ -1222,7 +1206,7 @@ echo "  ====================================="
 echo ""
 
 # Step 1: Request a device code
-RESPONSE=$(curl -fsSX POST "\${API_URL}/api/hooks/install/device" \\
+RESPONSE=$(curl -fsSX POST "\${API_URL}/hooks/install/device" \\
   -H "Content-Type: application/json" \\
   -d '{}')
 
@@ -1259,9 +1243,9 @@ while [[ $ELAPSED -lt $EXPIRES_IN ]]; do
   sleep "$INTERVAL"
   ELAPSED=$((ELAPSED + INTERVAL))
 
-  POLL=$(curl -fsSX POST "\${API_URL}/api/hooks/install/poll" \\
-    -H "Content-Type: application/json" \\
-    -d "{\\"device_code\\":\\"$DEVICE_CODE\\",\\"shell\\":\\"bash\\"}")
+   POLL=$(curl -fsSX POST "\${API_URL}/hooks/install/poll" \\
+     -H "Content-Type: application/json" \\
+     -d "{\\"device_code\\":\\"$DEVICE_CODE\\",\\"shell\\":\\"bash\\"}")
 
   # Check for script (success) — use python3 to safely decode JSON string
   if printf '%s' "$POLL" | grep -q '"script"'; then
@@ -1339,8 +1323,8 @@ exit 1
       });
     }
 
-    const script = `# Conduit Claude Code hook installer — device flow bootstrap
-# Usage: iwr -useb ${apiUrl}/api/hooks/install-claude.ps1 | iex
+     const script = `# Conduit Claude Code hook installer — device flow bootstrap
+# Usage: iwr -useb ${apiUrl}/hooks/install-claude.ps1 | iex
 $ErrorActionPreference = "Stop"
 
 $API_URL = "${apiUrl}"
@@ -1353,12 +1337,12 @@ Write-Host ""
 
 # Step 1: Request a device code
 try {
-  $response = Invoke-RestMethod -Method Post -Uri "$API_URL/api/hooks/install/device" \`
-    -ContentType "application/json" -Body '{}'
-} catch {
-  Write-Host "  Error: Failed to start device flow. Is the Conduit API reachable?" -ForegroundColor Red
-  exit 1
-}
+   $response = Invoke-RestMethod -Method Post -Uri "$API_URL/hooks/install/device" \`
+     -ContentType "application/json" -Body '{}'
+ } catch {
+   Write-Host "  Error: Failed to start device flow. Is the Conduit API reachable?" -ForegroundColor Red
+   exit 1
+ }
 
 $userCode   = $response.user_code
 $deviceCode = $response.device_code
@@ -1390,9 +1374,9 @@ while ($elapsed -lt $expiresIn) {
   $elapsed += $interval
 
   try {
-    $poll = Invoke-RestMethod -Method Post -Uri "$API_URL/api/hooks/install/poll" \`
-      -ContentType "application/json" \`
-      -Body (ConvertTo-Json @{ device_code = $deviceCode; shell = "powershell" } -Compress)
+     $poll = Invoke-RestMethod -Method Post -Uri "$API_URL/hooks/install/poll" \`
+       -ContentType "application/json" \`
+       -Body (ConvertTo-Json @{ device_code = $deviceCode; shell = "powershell" } -Compress)
   } catch {
     continue
   }
@@ -1471,7 +1455,7 @@ exit 1
 
     const script = `#!/usr/bin/env bash
 # Conduit OpenCode installer — device flow bootstrap
-# Usage: curl -fsSL ${apiUrl}/api/hooks/install-opencode.sh | bash
+# Usage: curl -fsSL ${apiUrl}/hooks/install-opencode.sh | bash
 set -euo pipefail
 
 API_URL="${apiUrl}"
@@ -1482,7 +1466,7 @@ echo "  ============================="
 echo ""
 
 # Step 1: Request a device code
-RESPONSE=$(curl -fsSX POST "\${API_URL}/api/hooks/install/device" \\
+RESPONSE=$(curl -fsSX POST "\${API_URL}/hooks/install/device" \\
   -H "Content-Type: application/json" \\
   -d '{}')
 
@@ -1517,9 +1501,9 @@ while [[ $ELAPSED -lt $EXPIRES_IN ]]; do
   sleep "$INTERVAL"
   ELAPSED=$((ELAPSED + INTERVAL))
 
-  POLL=$(curl -fsSX POST "\${API_URL}/api/hooks/install/poll" \\
-    -H "Content-Type: application/json" \\
-    -d "{\\"device_code\\":\\"$DEVICE_CODE\\",\\"shell\\":\\"bash-opencode\\"}")
+   POLL=$(curl -fsSX POST "\${API_URL}/hooks/install/poll" \\
+     -H "Content-Type: application/json" \\
+     -d "{\\"device_code\\":\\"$DEVICE_CODE\\",\\"shell\\":\\"bash-opencode\\"}")
 
   if printf '%s' "$POLL" | grep -q '"script"'; then
     SCRIPT=$(printf '%s' "$POLL" | python3 -c "import json,sys; print(json.load(sys.stdin)['script'], end='')")
@@ -1580,8 +1564,8 @@ exit 1
       });
     }
 
-    const script = `# Conduit OpenCode installer — device flow bootstrap
-# Usage: iwr -useb ${apiUrl}/api/hooks/install-opencode.ps1 | iex
+     const script = `# Conduit OpenCode installer — device flow bootstrap
+# Usage: iwr -useb ${apiUrl}/hooks/install-opencode.ps1 | iex
 $ErrorActionPreference = "Stop"
 
 $API_URL = "${apiUrl}"
@@ -1593,12 +1577,12 @@ Write-Host ""
 
 # Step 1: Request a device code
 try {
-  $response = Invoke-RestMethod -Method Post -Uri "$API_URL/api/hooks/install/device" \`
-    -ContentType "application/json" -Body '{}'
-} catch {
-  Write-Host "  Error: Failed to start device flow. Is the Conduit API reachable?" -ForegroundColor Red
-  exit 1
-}
+   $response = Invoke-RestMethod -Method Post -Uri "$API_URL/hooks/install/device" \`
+     -ContentType "application/json" -Body '{}'
+ } catch {
+   Write-Host "  Error: Failed to start device flow. Is the Conduit API reachable?" -ForegroundColor Red
+   exit 1
+ }
 
 $userCode   = $response.user_code
 $deviceCode = $response.device_code
@@ -1629,9 +1613,9 @@ while ($elapsed -lt $expiresIn) {
   $elapsed += $interval
 
   try {
-    $poll = Invoke-RestMethod -Method Post -Uri "$API_URL/api/hooks/install/poll" \`
-      -ContentType "application/json" \`
-      -Body (ConvertTo-Json @{ device_code = $deviceCode; shell = "powershell-opencode" } -Compress)
+     $poll = Invoke-RestMethod -Method Post -Uri "$API_URL/hooks/install/poll" \`
+       -ContentType "application/json" \`
+       -Body (ConvertTo-Json @{ device_code = $deviceCode; shell = "powershell-opencode" } -Compress)
   } catch {
     continue
   }
