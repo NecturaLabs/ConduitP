@@ -14,23 +14,6 @@ echo "Merging outputs..."
 mkdir -p apps/landing/out/app
 cp -r apps/web/dist/* apps/landing/out/app/
 
-# Inject Android App Links fingerprint into the published assetlinks.json.
-# Set ASSETLINKS_FINGERPRINT in your CI environment (Netlify env vars or
-# GitHub Actions variables) to your APK signing certificate's SHA-256 fingerprint.
-# Format: colon-separated hex pairs, e.g. AB:CD:EF:...
-if [ -n "${ASSETLINKS_FINGERPRINT:-}" ]; then
-  # Validate format: 32 hex pairs separated by colons (SHA-256 = 256 bits = 32 bytes)
-  if ! echo "$ASSETLINKS_FINGERPRINT" | grep -qE '^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$'; then
-    echo "ERROR: ASSETLINKS_FINGERPRINT has invalid format (expected 32 colon-separated hex pairs)" >&2
-    exit 1
-  fi
-  ASSETLINKS_FILE="apps/landing/out/.well-known/assetlinks.json"
-  if [ -f "$ASSETLINKS_FILE" ]; then
-    sed -i "s|YOUR_SHA256_CERT_FINGERPRINT_HERE|${ASSETLINKS_FINGERPRINT}|g" "$ASSETLINKS_FILE"
-    echo "Injected ASSETLINKS_FINGERPRINT into $ASSETLINKS_FILE"
-  fi
-fi
-
 # Write a _redirects file so Netlify rewrites /app/* to the Vite SPA index.
 # This runs before the 404.html catch-all and returns a 200 status.
 echo "/app/*  /app/index.html  200" > apps/landing/out/_redirects

@@ -85,38 +85,6 @@ jobs:
       #   ANDROID_STORE_PASSWORD   — keystore password
       #
       # Generate once with: scripts/generate-keystore.sh
-      - name: Generate assetlinks.json
-        run: |
-          install -m 600 /dev/null /tmp/conduit.keystore
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/conduit.keystore
-          SHA256=$(keytool -list -v \
-            -keystore /tmp/conduit.keystore \
-            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
-            -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" \
-            2>/dev/null | grep 'SHA256:' | awk '{print $2}')
-          shred -u /tmp/conduit.keystore 2>/dev/null || rm -f /tmp/conduit.keystore
-          mkdir -p apps/server/src/well-known
-          cat > apps/server/src/well-known/assetlinks.json <<EOF
-          [
-            {
-              "relation": ["delegate_permission/common.handle_all_urls"],
-              "target": {
-                "namespace": "android_app",
-                "package_name": "com.conduit.app",
-                "sha256_cert_fingerprints": ["${SHA256}"]
-              }
-            }
-          ]
-          EOF
-
-      - name: Commit assetlinks.json if changed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add apps/server/src/well-known/assetlinks.json
-          git diff --cached --quiet || git commit -m "ci: update assetlinks.json [skip ci]"
-          git push
-
       - name: Sign APK
         run: |
           # Write keystore with restrictive permissions before populating it.

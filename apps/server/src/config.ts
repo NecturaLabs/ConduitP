@@ -43,6 +43,19 @@ export const config = {
 
   hookToken: readSecret('CONDUIT_HOOK_TOKEN') ?? '',
 
+  // Android App Links — SHA-256 fingerprint of the APK signing certificate.
+  // Set ASSETLINKS_FINGERPRINT in Dokploy (server env vars). Never hardcode.
+  // Format: 32 colon-separated hex pairs, e.g. AB:CD:EF:...
+  // Served at GET /.well-known/assetlinks.json; returns 404 if not set.
+  assetlinksFingerprint: (() => {
+    const raw = readSecret('ASSETLINKS_FINGERPRINT') ?? '';
+    if (!raw) return '';
+    if (/^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$/.test(raw)) return raw;
+    // eslint-disable-next-line no-console
+    console.warn('[config] ASSETLINKS_FINGERPRINT has invalid format (expected 32 colon-separated hex pairs), ignoring');
+    return '';
+  })(),
+
   opencodeUrl: readSecret('OPENCODE_SERVER_URL') ?? readSecret('OPENCODE_URL') ?? 'http://localhost:3000',
   opencodePassword: readSecret('OPENCODE_SERVER_PASSWORD') ?? readSecret('OPENCODE_PASSWORD') ?? '',
 

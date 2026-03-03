@@ -12,9 +12,6 @@
 #   VITE_API_URL     - API base URL (e.g. https://api.conduit.example.com)
 #   NETLIFY_SITE_ID  - Netlify site ID
 #
-# Optional repository variables:
-#   ASSETLINKS_FINGERPRINT - SHA-256 cert fingerprint for Android App Links (assetlinks.json)
-
 name: Deploy Frontend
 
 on:
@@ -66,7 +63,6 @@ jobs:
       - name: Build frontend
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
-          ASSETLINKS_FINGERPRINT: ${{ vars.ASSETLINKS_FINGERPRINT }}
         run: bash scripts/build-netlify.sh
 
       - name: Deploy to Netlify

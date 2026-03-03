@@ -2,26 +2,12 @@
   command = "chmod +x scripts/build-netlify.sh && bun install --frozen-lockfile && bash scripts/build-netlify.sh"
   publish = "apps/landing/out"
 
-# Serve Android App Links verification file (Netlify blocks dotfiles by default)
-[[redirects]]
-  from = "/.well-known/*"
-  to = "/.well-known/:splat"
-  status = 200
-  force = true
-
 # Serve the dashboard SPA under /app/*
 [[redirects]]
   from = "/app/*"
   to = "/app/index.html"
   status = 200
   force = true
-
-# Android App Links
-[[headers]]
-  for = "/.well-known/assetlinks.json"
-  [headers.values]
-    Content-Type = "application/json"
-    Access-Control-Allow-Origin = "*"
 
 # Security headers for dashboard
 [[headers]]

@@ -60,6 +60,24 @@ keytool -genkey \
 echo ""
 echo "  Keystore generated: $KEYSTORE_FILE"
 echo ""
+
+# Extract SHA-256 fingerprint for Android App Links (assetlinks.json)
+SHA256=$(keytool -list -v \
+  -keystore "$KEYSTORE_FILE" \
+  -alias "$KEY_ALIAS" \
+  -storepass "$STORE_PASS" \
+  2>/dev/null | grep 'SHA256:' | awk '{print $2}')
+
+echo "  SHA-256 fingerprint: $SHA256"
+echo ""
+echo "  ================================================================"
+echo "  Set this in your server environment (Dokploy / docker-compose):"
+echo "  ================================================================"
+echo ""
+echo "  ASSETLINKS_FINGERPRINT=$SHA256"
+echo ""
+echo "  The API server serves it at GET /.well-known/assetlinks.json."
+echo ""
 echo "  ================================================================"
 echo "  Add these 4 values as GitHub Actions repository secrets:"
 echo "  (Settings → Secrets and variables → Actions → New repository secret)"
