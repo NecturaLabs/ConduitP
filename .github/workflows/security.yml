@@ -65,6 +65,11 @@ jobs:
           languages: javascript-typescript
           queries: security-and-quality
           config-file: ./.github/codeql/codeql-config.yml
+          # Disable dependency caching: this feature hashes Maven/Gradle/pip lockfiles,
+          # but Conduit is a pure JS/TS repo with no such files. Without this flag the
+          # cache key changes on every new CodeQL bundle release, producing a new orphaned
+          # ~349 MB cache entry on every single run.
+          dependency-caching: false
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
