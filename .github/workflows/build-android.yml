@@ -85,6 +85,13 @@ jobs:
       #   ANDROID_STORE_PASSWORD   — keystore password
       #
       # Generate once with: scripts/generate-keystore.sh
+      - name: Print release certificate SHA-256 fingerprint
+        run: |
+          install -m 600 /dev/null /tmp/conduit.keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/conduit.keystore
+          echo "::notice title=Release cert SHA-256::$(keytool -list -v -keystore /tmp/conduit.keystore -alias "${{ secrets.ANDROID_KEY_ALIAS }}" -storepass "${{ secrets.ANDROID_STORE_PASSWORD }}" 2>/dev/null | grep 'SHA256:' | awk '{print $2}')"
+          shred -u /tmp/conduit.keystore 2>/dev/null || rm -f /tmp/conduit.keystore
+
       - name: Sign APK
         run: |
           # Write keystore with restrictive permissions before populating it.
