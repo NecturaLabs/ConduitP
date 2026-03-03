@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Zap, AlertCircle } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Zap, AlertCircle, Smartphone } from 'lucide-react';
 import { MagicLinkForm } from '@/components/auth/MagicLinkForm';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 import { Spinner } from '@/components/ui/Spinner';
@@ -29,27 +30,32 @@ export function Auth() {
 
   const [verifying,   setVerifying]   = useState(false);
   const [verifyError, setVerifyError] = useState('');
+  // Trampoline state: when the SPA loads inside an email client's Custom Tab
+  // on Android, we show a handoff screen instead of immediately consuming the
+  // token, because the native app should handle it via intent://.
+  const [showTrampoline, setShowTrampoline] = useState(false);
+  const [trampolineToken, setTrampolineToken] = useState<string | null>(null);
 
   const token       = searchParams.get('token');
   const oauthError  = searchParams.get('error');
   const isVerifyRoute = location.pathname.endsWith('/verify');
 
-  useEffect(() => {
-    if (isAuthenticated && !isVerifyRoute) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isAuthenticated, isVerifyRoute, navigate]);
+  // Detect Android browser (not native Capacitor WebView)
+  const isAndroidBrowser =
+    !Capacitor.isNativePlatform() &&
+    /Android/i.test(navigator.userAgent);
 
-  useEffect(() => {
-    if (!isVerifyRoute || !token) return;
-
+  // Proceed with normal token verification via POST
+  const verifyToken = useCallback((tokenToVerify: string) => {
     // Clear the token from the URL immediately to prevent it leaking via
     // Referer headers or browser history (RFC 9700 §4.2).
     setSearchParams({}, { replace: true });
+    setShowTrampoline(false);
+    setTrampolineToken(null);
 
     setVerifying(true);
     api
-      .postPublic<{ user: UserProfile & { onboardingComplete: boolean } }>('/auth/verify', { token })
+      .postPublic<{ user: UserProfile & { onboardingComplete: boolean } }>('/auth/verify', { token: tokenToVerify })
       .then((res) => {
         setUser(res.user);
         setOnboarded(res.user.onboardingComplete);
@@ -63,7 +69,30 @@ export function Auth() {
         setVerifyError(err instanceof Error ? err.message : 'Verification failed');
         setVerifying(false);
       });
-  }, [isVerifyRoute, token, navigate, setUser, setOnboarded]);
+  }, [navigate, setUser, setOnboarded, setSearchParams]);
+
+  useEffect(() => {
+    if (isAuthenticated && !isVerifyRoute) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, isVerifyRoute, navigate]);
+
+  useEffect(() => {
+    if (!isVerifyRoute || !token) return;
+
+    // On Android browsers (e.g. Outlook Custom Tab), show the trampoline
+    // to hand off to the native app instead of consuming the token here.
+    if (isAndroidBrowser) {
+      setTrampolineToken(token);
+      setShowTrampoline(true);
+      // Clear the token from the URL but keep state in React
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    // Desktop / non-Android: verify immediately via POST
+    verifyToken(token);
+  }, [isVerifyRoute, token, isAndroidBrowser, verifyToken, setSearchParams]);
 
   // Translate the opaque OAuth error code (set by the server callback redirect)
   // into a user-friendly message. Remove it from the URL so a refresh doesn't
@@ -78,6 +107,13 @@ export function Auth() {
       setSearchParams({}, { replace: true });
     }
   }, [oauthError, setSearchParams]);
+
+  // Build intent:// URI for Android app handoff.
+  // intent://HOST/PATH#Intent;scheme=https;package=PACKAGE;S.browser_fallback_url=FALLBACK;end
+  const intentUri = trampolineToken
+    ? `intent://conduit-api.ms-mvp.com/app/auth/verify?token=${encodeURIComponent(trampolineToken)}` +
+      `#Intent;scheme=https;package=com.conduit.app;end`
+    : null;
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[var(--color-base)] p-4">
@@ -104,7 +140,28 @@ export function Auth() {
         )}
 
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-lg">
-          {verifying ? (
+          {showTrampoline && intentUri ? (
+            <div className="flex flex-col items-center gap-4 py-6">
+              <Smartphone className="h-10 w-10 text-[var(--color-accent)]" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-[var(--color-text)]">Open in Conduit</h2>
+              <p className="text-center text-sm text-[var(--color-muted)]">
+                Tap the button below to sign in with the Conduit app.
+              </p>
+              <a
+                href={intentUri}
+                className="inline-flex items-center justify-center rounded-lg bg-[var(--color-accent)] px-6 py-3 text-sm font-semibold text-white transition-colors hover:opacity-90"
+              >
+                Open in Conduit
+              </a>
+              <button
+                type="button"
+                onClick={() => trampolineToken && verifyToken(trampolineToken)}
+                className="text-sm text-[var(--color-accent)] hover:underline"
+              >
+                Continue in browser instead
+              </button>
+            </div>
+          ) : verifying ? (
             <div className="flex flex-col items-center gap-3 py-8">
               <Spinner size="lg" className="text-[var(--color-accent)]" />
               <p className="text-sm text-[var(--color-muted)]">Verifying your magic link...</p>
