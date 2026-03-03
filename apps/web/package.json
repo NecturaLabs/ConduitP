@@ -28,7 +28,7 @@
     "@tanstack/react-query": "^5.62.0",
     "clsx": "^2.1.0",
     "codemirror": "^6.0.0",
-    "lucide-react": "^0.575.0",
+    "lucide-react": "^0.576.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
