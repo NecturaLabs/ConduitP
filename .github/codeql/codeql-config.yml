@@ -1,0 +1,9 @@
+name: Conduit CodeQL Config
+
+paths-ignore:
+  # The MCP server CLI embeds PowerShell scripts as JavaScript template
+  # literals.  CodeQL's JS/TS parser cannot handle the backtick line-
+  # continuations and PowerShell syntax inside the template, producing
+  # ~44 false-positive "syntax error" warnings.  The file contains no
+  # security-sensitive server-side logic — it is a local CLI tool.
+  - packages/mcp-server/src/index.ts
