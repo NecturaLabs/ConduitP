@@ -1,6 +1,6 @@
 # Conduit
 
-Self-hosted, mobile-first dashboard for monitoring and controlling [OpenCode](https://opencode.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) agents.
+Mobile-first dashboard for monitoring and controlling [OpenCode](https://opencode.ai) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) agents.
 
 **Self-host for free, forever.**
 
