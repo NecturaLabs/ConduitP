@@ -110,8 +110,17 @@ export function Auth() {
 
   // Build intent:// URI for Android app handoff.
   // intent://HOST/PATH#Intent;scheme=https;package=PACKAGE;S.browser_fallback_url=FALLBACK;end
+  // Derive the host from VITE_API_URL so it works in any deployment.
+  const apiHost = (() => {
+    try {
+      const base = import.meta.env.VITE_API_URL;
+      return base ? new URL(base).host : window.location.host;
+    } catch {
+      return window.location.host;
+    }
+  })();
   const intentUri = trampolineToken
-    ? `intent://conduit-api.ms-mvp.com/app/auth/verify?token=${encodeURIComponent(trampolineToken)}` +
+    ? `intent://${apiHost}/app/auth/verify?token=${encodeURIComponent(trampolineToken)}` +
       `#Intent;scheme=https;package=com.conduit.app;end`
     : null;
 
