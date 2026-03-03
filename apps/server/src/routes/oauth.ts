@@ -28,7 +28,7 @@
  * - Only verified/confirmed provider emails accepted (guards against account takeover)
  * - Provider access token zeroed after a single use
  * - Error redirects use opaque codes — no internal details leak to the browser
- * - Rate-limited by IP on /start (same config as magic link)
+ * - Rate-limited by IP on /start (looser than magic link — no email is sent)
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -49,7 +49,7 @@ import {
   hashToken,
 } from '../services/auth.js';
 import { config } from '../config.js';
-import { authRateLimit } from '../middleware/rateLimit.js';
+import { oauthStartRateLimit } from '../middleware/rateLimit.js';
 import { mapUserRow } from '../lib/db-helpers.js';
 import {
   REFRESH_TOKEN_TTL,
@@ -103,10 +103,12 @@ export async function oauthRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // GET /auth/oauth/:provider/start
-  // Initiates the OAuth flow — rate limited by IP (same as magic link).
+  // Initiates the OAuth flow — rate limited by IP.
+  // Uses oauthStartRateLimit (20/15min) rather than authRateLimit because
+  // /start only stores a DB row and issues a redirect; it does NOT send email.
   fastify.get<{ Params: { provider: string } }>(
     '/:provider/start',
-    { config: { rateLimit: authRateLimit } },
+    { config: { rateLimit: oauthStartRateLimit } },
     async (request, reply) => {
       const { provider } = request.params;
 
