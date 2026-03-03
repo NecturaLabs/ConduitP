@@ -1,7 +1,7 @@
 # Pin to a specific image digest to prevent supply-chain attacks via tag mutation.
 # To update: pull oven/bun:1.2-alpine, run `docker inspect --format='{{index .RepoDigests 0}}'`
 # and replace the digest below. Also update the bun-version in CI workflows to match.
-FROM oven/bun:1.2-alpine@sha256:5ecd5dcc8138e00024ca1163e97b07de0a841e906efc5eb5cf36d717aea797ad
+FROM oven/bun:1.3-alpine@sha256:32f1fcccb1523960b254c4f80973bee1a910d60be000a45c20c9129a1efcffee
 RUN addgroup -g 1001 conduit && adduser -u 1001 -G conduit -s /bin/sh -D conduit
 WORKDIR /app
 
