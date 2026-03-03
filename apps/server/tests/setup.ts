@@ -1,7 +1,7 @@
 import { afterEach, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
-import { createAccessToken, createRefreshToken, generateId, hashToken, generateFamilyId } from '../src/services/auth.js';
+import { createAccessToken, createRefreshToken, generateId, hashToken } from '../src/services/auth.js';
 
 let app: FastifyInstance;
 
@@ -72,7 +72,7 @@ export function createTestTokens(user: { id: string; email: string }): {
   refreshToken: string;
   familyId: string;
 } {
-  const familyId = generateFamilyId();
+  const familyId = generateId();
 
   const accessToken = createAccessToken(
     { sub: user.id, email: user.email },

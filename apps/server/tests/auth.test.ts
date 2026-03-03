@@ -8,7 +8,6 @@ import {
   createRefreshToken,
   verifyToken,
   generateId,
-  generateFamilyId,
 } from '../src/services/auth.js';
 import type { JWTPayload, RefreshJWTPayload } from '@conduit/shared';
 
@@ -64,10 +63,10 @@ describe('Auth Service', () => {
   });
 
   describe('JWT Refresh Token', () => {
-    it('should create and verify a refresh token', () => {
-      const { jwtRefreshSecret } = getTestSecrets();
-      const familyId = generateFamilyId();
-      const token = createRefreshToken({ sub: 'user-123', family: familyId }, jwtRefreshSecret);
+     it('should create and verify a refresh token', () => {
+       const { jwtRefreshSecret } = getTestSecrets();
+       const familyId = generateId();
+       const token = createRefreshToken({ sub: 'user-123', family: familyId }, jwtRefreshSecret);
       const payload = verifyToken<RefreshJWTPayload>(token, jwtRefreshSecret);
 
       expect(payload).not.toBeNull();

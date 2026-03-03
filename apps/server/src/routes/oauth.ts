@@ -217,23 +217,18 @@ export async function oauthRoutes(fastify: FastifyInstance): Promise<void> {
         return redirectError(reply, 'provider_error');
       }
 
-      // Fetch minimal user info and immediately zero the token
-      let providerUser: Awaited<ReturnType<typeof fetchProviderUser>>;
-      try {
-        providerUser = await fetchProviderUser(oauthProvider, accessToken, config.gitlabBaseUrl);
-      } catch (err) {
-        // SECURITY: Zero our own reference too — fetchProviderUser zeros the parameter
-        // copy, but we zero our local binding here for belt-and-suspenders.
-        accessToken = '';
-        if (err instanceof OAuthNoVerifiedEmailError) {
-          request.log.info({ provider }, 'OAuth login rejected: no verified email');
-          return redirectError(reply, 'no_verified_email');
-        }
-        request.log.error({ err, provider }, 'OAuth user fetch failed');
-        return redirectError(reply, 'provider_error');
-      }
-      // Belt-and-suspenders: zero our copy of the access token here as well
-      accessToken = '';
+       // Fetch minimal user info
+       let providerUser: Awaited<ReturnType<typeof fetchProviderUser>>;
+       try {
+         providerUser = await fetchProviderUser(oauthProvider, accessToken, config.gitlabBaseUrl);
+       } catch (err) {
+         if (err instanceof OAuthNoVerifiedEmailError) {
+           request.log.info({ provider }, 'OAuth login rejected: no verified email');
+           return redirectError(reply, 'no_verified_email');
+         }
+         request.log.error({ err, provider }, 'OAuth user fetch failed');
+         return redirectError(reply, 'provider_error');
+       }
 
       const { providerId, email, name } = providerUser;
 

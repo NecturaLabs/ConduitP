@@ -210,18 +210,10 @@ export async function fetchProviderUser(
   accessToken: string,
   gitlabBaseUrl = 'https://gitlab.com',
 ): Promise<ProviderUser> {
-  try {
-    if (provider === 'github') {
-      return await fetchGitHubUser(accessToken);
-    }
-    return await fetchGitLabUser(accessToken, gitlabBaseUrl);
-  } finally {
-    // SECURITY: Zero the token reference so it cannot be accidentally serialized
-    // into logs or error reports after this function returns.
-    // Note: this reassigns the local parameter; the caller's variable is unaffected —
-    // callers should also clear their reference (done in routes/oauth.ts).
-    accessToken = '';
+  if (provider === 'github') {
+    return await fetchGitHubUser(accessToken);
   }
+  return await fetchGitLabUser(accessToken, gitlabBaseUrl);
 }
 
 async function fetchGitHubUser(accessToken: string): Promise<ProviderUser> {

@@ -18,7 +18,7 @@
  * - Account deletion removes oauth_connections
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getApp, createTestUser, createTestTokens } from './setup.js';
 import {
   generateOAuthState,
