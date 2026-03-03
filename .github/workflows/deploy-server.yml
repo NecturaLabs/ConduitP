@@ -14,10 +14,6 @@
 # Required repository variables:
 #   DOKPLOY_APP_ID   - Dokploy application ID for the conduit-api service
 #   DEPLOY_BACKEND   - Set to 'true' to enable Dokploy source deploy
-#
-# Optional repository variables:
-#   TRUSTED_ACTORS   - Comma-separated GitHub usernames to use self-hosted runners
-#                      (e.g. 'Nectura'). All other actors use ubuntu-latest.
 
 name: Deploy Backend
 
@@ -45,7 +41,7 @@ jobs:
   build-backend:
     if: "!(github.actor == 'dependabot[bot]' && github.event_name == 'pull_request')"
     name: Backend — Build & Deploy
-    runs-on: ${{ contains(format(',{0},', vars.TRUSTED_ACTORS), format(',{0},', github.actor)) && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:

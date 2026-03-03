@@ -52,10 +52,12 @@ jobs:
 
       # Auto-increment patch version if the current version is already on npm.
       # Keeps bumping until it finds a version that hasn't been published yet,
-      # then commits the updated package.json back to main so subsequent runs
-      # always start from a fresh version.
+      # then commits the updated package.json back to main via the GitHub API
+      # (which produces verified/signed commits that satisfy branch protection).
       - name: Auto-increment version if needed
         id: auto-bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd packages/mcp-server
           PACKAGE_NAME=$(node -p "require('./package.json').name")
@@ -79,17 +81,29 @@ jobs:
 
           if [ "$VERSION" != "$CURRENT" ]; then
             echo "Bumping $PACKAGE_NAME from $CURRENT → $VERSION"
+
+            # Update package.json locally for the build step
             node -e "
               const fs = require('fs');
               const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
               pkg.version = '$VERSION';
               fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
             "
-            git config user.name  "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add package.json
-            git commit --no-gpg-sign -m "chore(mcp-server): bump version to $VERSION [skip ci]"
-            git push
+
+            # Commit via GitHub API — produces a verified commit that satisfies
+            # branch protection rules (signed commits, PR bypass for bots).
+            CONTENT=$(base64 -w 0 package.json)
+            SHA=$(gh api repos/${{ github.repository }}/contents/packages/mcp-server/package.json \
+              --jq '.sha')
+            gh api repos/${{ github.repository }}/contents/packages/mcp-server/package.json \
+              -X PUT \
+              -f message="chore(mcp-server): bump version to $VERSION [skip ci]" \
+              -f content="$CONTENT" \
+              -f sha="$SHA" \
+              -f branch="main"
+
+            # Pull the API-created commit so local tree stays in sync
+            git pull --ff-only origin main
           else
             echo "$PACKAGE_NAME@$VERSION not yet on npm — no bump needed"
           fi

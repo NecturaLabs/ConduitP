@@ -13,8 +13,6 @@
 #   NETLIFY_SITE_ID  - Netlify site ID
 #
 # Optional repository variables:
-#   TRUSTED_ACTORS        - Comma-separated GitHub usernames to use self-hosted runners
-#                           (e.g. 'Nectura'). All other actors use ubuntu-latest.
 #   ASSETLINKS_FINGERPRINT - SHA-256 cert fingerprint for Android App Links (assetlinks.json)
 
 name: Deploy Frontend
@@ -47,7 +45,7 @@ jobs:
   build-frontend:
     if: "!(github.actor == 'dependabot[bot]' && github.event_name == 'pull_request')"
     name: Frontend — Build & Deploy
-    runs-on: ${{ contains(format(',{0},', vars.TRUSTED_ACTORS), format(',{0},', github.actor)) && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
