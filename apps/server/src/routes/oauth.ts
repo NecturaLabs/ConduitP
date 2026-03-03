@@ -40,6 +40,7 @@ import {
   buildAuthorizationUrl,
   exchangeCodeForToken,
   fetchProviderUser,
+  hashOAuthState,
   OAuthNoVerifiedEmailError,
 } from '../services/oauth.js';
 import {
@@ -187,7 +188,7 @@ export async function oauthRoutes(fastify: FastifyInstance): Promise<void> {
       // SECURITY: Atomic state consumption via DELETE.
       // Only succeeds (changes === 1) if the state exists, matches the provider,
       // and has not yet expired. If two concurrent requests race, only the first wins.
-      const stateHash  = hashToken(state); // reuses existing SHA-256 hasher from auth service
+      const stateHash = hashOAuthState(state);
       const deleteResult = db.query(`
         DELETE FROM oauth_states
         WHERE state_hash = ? AND provider = ? AND expires_at > datetime('now')

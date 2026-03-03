@@ -7,7 +7,7 @@
  *
  * Security properties:
  * - httpOnly: prevents JS access — XSS cannot steal tokens
- * - secure: requires HTTPS (Capacitor bypasses this in dev, handled via sameSite)
+ * - secure: derived from API_URL scheme — true for HTTPS, false for HTTP (dev only)
  * - sameSite: 'lax' when same registrable domain; 'none' cross-origin
  * - path-scoped refresh token: limits the cookie's exposure surface
  */
@@ -96,6 +96,13 @@ function deriveCookieDomain(): string | undefined {
 export const COOKIE_DOMAIN = deriveCookieDomain();
 
 /**
+ * Derive `Secure` flag from the API URL scheme.
+ * In production, config.ts enforces https:// for API_URL, so this is always `true`.
+ * In development (HTTP), `Secure` must be `false` or browsers silently reject Set-Cookie.
+ */
+export const COOKIE_SECURE = config.apiUrl.startsWith('https://');
+
+/**
  * Resolve the effective SameSite value for a given request origin.
  * Capacitor Android sends requests from 'capacitor://localhost' or 'https://localhost'.
  * SameSite=none requires Secure=true — neither holds for capacitor://, so we
@@ -110,7 +117,7 @@ export function resolveSameSite(requestOrigin: string | undefined): 'lax' | 'non
 export function cookieOptionsAccess(requestOrigin: string | undefined) {
   return {
     httpOnly: true,
-    secure: true,
+    secure: COOKIE_SECURE,
     sameSite: resolveSameSite(requestOrigin),
     path: '/',
     maxAge: ACCESS_TOKEN_TTL,
@@ -121,7 +128,7 @@ export function cookieOptionsAccess(requestOrigin: string | undefined) {
 export function cookieOptionsRefresh(requestOrigin: string | undefined) {
   return {
     httpOnly: true,
-    secure: true,
+    secure: COOKIE_SECURE,
     sameSite: resolveSameSite(requestOrigin),
     path: '/auth/refresh',
     maxAge: REFRESH_TOKEN_TTL,

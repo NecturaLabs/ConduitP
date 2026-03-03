@@ -14,7 +14,7 @@ COPY apps/landing/package.json ./apps/landing/
 COPY apps/mobile/package.json ./apps/mobile/
 COPY cli/package.json ./cli/
 
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN bun install --ignore-scripts
 
 # Copy source for the packages we actually need to build
 COPY packages/shared ./packages/shared
@@ -23,7 +23,7 @@ COPY apps/web ./apps/web
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
 
-RUN bun run --filter @conduit/shared build && bun run --filter @conduit/web build
+RUN cd packages/shared && bun run build && cd /app/apps/web && bun run build
 
 FROM alpine:3.23
 # Bake dist into /app-dist/app/ inside the image (NOT under /output which is the shared volume mount).

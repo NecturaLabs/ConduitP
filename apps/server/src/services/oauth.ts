@@ -32,6 +32,14 @@ export function generateOAuthState(): { raw: string; hash: string } {
 }
 
 /**
+ * Hash a raw OAuth state value for DB lookup — must match the hash
+ * algorithm used in {@link generateOAuthState}.
+ */
+export function hashOAuthState(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+/**
  * Generate a PKCE code_verifier per RFC 7636 §4.1.
  *
  * Spec requires 43–128 characters from the unreserved character set
