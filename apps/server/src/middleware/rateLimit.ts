@@ -1,5 +1,17 @@
+/** Rate limit for magic-link send and verify endpoints.
+ *  Keyed by IP. 10 attempts per 15 minutes is generous enough for
+ *  legitimate users (including retries) while still blocking brute-force. */
 export const authRateLimit = {
-  max: 5,
+  max: 10,
+  timeWindow: '15 minutes',
+};
+
+/** Rate limit for OAuth /start endpoints.
+ *  /start only stores a state row and issues a redirect — it does NOT send
+ *  email — so a looser limit is appropriate. 20 per 15 minutes handles
+ *  users who mis-click or switch between providers without locking them out. */
+export const oauthStartRateLimit = {
+  max: 20,
   timeWindow: '15 minutes',
 };
 
