@@ -123,7 +123,7 @@ const HOOK_EVENTS = [
 
 function buildHookCommand(serverUrl: string, token: string): string {
   // Single-line bash: read stdin, compute HMAC, POST fire-and-forget
-  const url = `${serverUrl}/api/hooks`;
+  const url = `${serverUrl}/hooks`;
   return (
     `INPUT=$(cat); ` +
     `TS=$(date +%s); ` +

@@ -176,7 +176,7 @@ TS=$(date +%s)000
 PAYLOAD="{\\"event\\":\\"$EVENT\\",\\"timestamp\\":\\"$ISO_NOW\\",\\"sessionId\\":\\"$SESSION\\",\\"data\\":$BODY}"
 SIG=$(printf '%s' "\${TS}.\${PAYLOAD}" | openssl dgst -sha256 -hmac "$TOKEN" -hex | awk '{print $NF}')
 
-curl -sX POST "\${API_URL}/api/hooks" \\
+curl -sX POST "\${API_URL}/hooks" \\
   -H "Authorization: Bearer \${TOKEN}" \\
   -H "Content-Type: application/json" \\
   -H "X-Conduit-Timestamp: \${TS}" \\
@@ -194,7 +194,7 @@ curl -sX POST "\${API_URL}/api/hooks" \\
 #   We guard against infinite loops with stop_hook_active from the hook input.
 #
 if [[ "$EVENT" == "UserPromptSubmit" ]]; then
-  PROMPTS_RESP=$(curl -sf "\${API_URL}/api/prompts/pending" \\
+  PROMPTS_RESP=$(curl -sf "\${API_URL}/prompts/pending" \\
     -H "Authorization: Bearer \${TOKEN}" 2>/dev/null || echo "")
   if [[ -n "$PROMPTS_RESP" ]]; then
     python3 - <<'PYEOF' "\${PROMPTS_RESP}" "\${API_URL}" "\${TOKEN}" || true
@@ -214,7 +214,7 @@ try:
             lines.append(f"[Conduit dashboard prompt]: {content}")
             try:
                 req = urllib.request.Request(
-                    f"{api_url}/api/prompts/{pid}/ack",
+                    f"{api_url}/prompts/{pid}/ack",
                     data=json.dumps({"status": "delivered"}).encode(),
                     headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                     method="POST",
@@ -244,7 +244,7 @@ except:
 " 2>/dev/null || echo "false")
 
   if [[ "$STOP_HOOK_ACTIVE" != "true" ]]; then
-    PROMPTS_RESP=$(curl -sf "\${API_URL}/api/prompts/pending" \\
+    PROMPTS_RESP=$(curl -sf "\${API_URL}/prompts/pending" \\
       -H "Authorization: Bearer \${TOKEN}" 2>/dev/null || echo "")
     if [[ -n "$PROMPTS_RESP" ]]; then
       python3 - <<'PYEOF' "\${PROMPTS_RESP}" "\${API_URL}" "\${TOKEN}" || true
@@ -264,7 +264,7 @@ try:
             lines.append(f"[Conduit dashboard prompt]: {content}")
             try:
                 req = urllib.request.Request(
-                    f"{api_url}/api/prompts/{pid}/ack",
+                    f"{api_url}/prompts/{pid}/ack",
                     data=json.dumps({"status": "delivered"}).encode(),
                     headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                     method="POST",
@@ -294,7 +294,7 @@ if [[ "$EVENT" == "SessionStart" ]]; then
     # even when multiple Claude Code instances are registered for the same user.
     CONFIG_PAYLOAD="{\\"event\\":\\"config.sync\\",\\"timestamp\\":\\"$ISO2\\",\\"sessionId\\":\\"$SESSION\\",\\"data\\":{\\"agentType\\":\\"claude-code\\",\\"content\\":$(python3 -c "import sys,json; print(json.dumps(open(sys.argv[1]).read()))" "$SETTINGS")}}"
     SIG2=$(printf '%s' "\${TS2}.\${CONFIG_PAYLOAD}" | openssl dgst -sha256 -hmac "$TOKEN" -hex | awk '{print $NF}')
-    curl -sX POST "\${API_URL}/api/hooks" \\
+    curl -sX POST "\${API_URL}/hooks" \\
       -H "Authorization: Bearer \${TOKEN}" \\
       -H "Content-Type: application/json" \\
       -H "X-Conduit-Timestamp: \${TS2}" \\
@@ -303,7 +303,7 @@ if [[ "$EVENT" == "SessionStart" ]]; then
   fi
 
   # Pass ?sessionId= so the server resolves the exact instance for this machine.
-  PENDING=$(curl -sf "\${API_URL}/api/config/pending?sessionId=\${SESSION}" \\
+  PENDING=$(curl -sf "\${API_URL}/config/pending?sessionId=\${SESSION}" \\
     -H "Authorization: Bearer \${TOKEN}" 2>/dev/null || echo "")
   if [[ -n "$PENDING" ]]; then
     python3 - <<'CFGPYEOF' "\${PENDING}" "\${API_URL}" "\${TOKEN}" "\${SETTINGS}" || true
@@ -323,7 +323,7 @@ try:
         f.write(content)
     # Ack with the specific instanceId so only this instance's pending row is cleared
     req = urllib.request.Request(
-        f"{api_url}/api/config/ack",
+        f"{api_url}/config/ack",
         data=json.dumps({"instanceId": instance_id}).encode(),
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         method="POST",
@@ -371,7 +371,7 @@ $sig      = ($hmac.ComputeHash($msgBytes) | ForEach-Object { $_.ToString("x2") }
 
 try {
   Invoke-RestMethod -Method Post \`
-    -Uri "$API_URL/api/hooks" \`
+    -Uri "$API_URL/hooks" \`
     -Headers @{
       "Authorization"       = "Bearer $TOKEN"
       "X-Conduit-Timestamp" = "$ts"
@@ -392,7 +392,7 @@ try {
 #
 if ($event -eq "UserPromptSubmit") {
   try {
-    $pendingResp = Invoke-RestMethod -Uri "$API_URL/api/prompts/pending" \`
+    $pendingResp = Invoke-RestMethod -Uri "$API_URL/prompts/pending" \`
       -Headers @{ "Authorization" = "Bearer $TOKEN" }
     $prompts = $pendingResp.data
     if ($prompts) {
@@ -403,7 +403,7 @@ if ($event -eq "UserPromptSubmit") {
           Write-Output "[Conduit dashboard prompt]: $content"
           try {
             Invoke-RestMethod -Method Post \`
-              -Uri "$API_URL/api/prompts/$pid/ack" \`
+              -Uri "$API_URL/prompts/$pid/ack" \`
               -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
               -ContentType "application/json" \`
               -Body '{"status":"delivered"}' | Out-Null
@@ -422,7 +422,7 @@ if ($event -eq "Stop") {
 
   if (-not $stopHookActive) {
     try {
-      $pendingResp = Invoke-RestMethod -Uri "$API_URL/api/prompts/pending" \`
+      $pendingResp = Invoke-RestMethod -Uri "$API_URL/prompts/pending" \`
         -Headers @{ "Authorization" = "Bearer $TOKEN" }
       $prompts = $pendingResp.data
       if ($prompts) {
@@ -434,7 +434,7 @@ if ($event -eq "Stop") {
             $lines.Add("[Conduit dashboard prompt]: $content")
             try {
               Invoke-RestMethod -Method Post \`
-                -Uri "$API_URL/api/prompts/$pid/ack" \`
+                -Uri "$API_URL/prompts/$pid/ack" \`
                 -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
                 -ContentType "application/json" \`
                 -Body '{"status":"delivered"}' | Out-Null
@@ -444,7 +444,7 @@ if ($event -eq "Stop") {
         if ($lines.Count -gt 0) {
           # Output decision:block JSON — prevents Claude from stopping and
           # feeds the dashboard prompt as the reason to continue.
-          $reason = $lines -join "\`n"
+          $reason = $lines -join "`n"
           $blockJson = [ordered]@{ decision = "block"; reason = $reason } | ConvertTo-Json -Compress
           Write-Output $blockJson
         }
@@ -467,7 +467,7 @@ if ($event -eq "SessionStart") {
       $hmac2 = New-Object System.Security.Cryptography.HMACSHA256
       $hmac2.Key = $keyBytes
       $sig2 = ($hmac2.ComputeHash($msgBytes2) | ForEach-Object { $_.ToString("x2") }) -join ""
-      Invoke-RestMethod -Method Post -Uri "$API_URL/api/hooks" \`
+      Invoke-RestMethod -Method Post -Uri "$API_URL/hooks" \`
         -Headers @{ "Authorization" = "Bearer $TOKEN"; "X-Conduit-Timestamp" = "$ts2"; "X-Conduit-Signature" = "sha256=$sig2" } \`
         -ContentType "application/json" -Body $configPayload | Out-Null
     } catch { }
@@ -475,7 +475,7 @@ if ($event -eq "SessionStart") {
 
   # Pass ?sessionId= so the server resolves the correct instance for this machine
   try {
-    $pending = Invoke-RestMethod -Uri "$API_URL/api/config/pending?sessionId=$session" \`
+    $pending = Invoke-RestMethod -Uri "$API_URL/config/pending?sessionId=$session" \`
       -Headers @{ "Authorization" = "Bearer $TOKEN" }
     $pendingContent = $pending.data.content
     $pendingInstanceId = $pending.data.instanceId
@@ -484,7 +484,7 @@ if ($event -eq "SessionStart") {
       Set-Content -Path $settingsPath -Value $pendingContent -Encoding UTF8
       # Ack with the specific instanceId so only this instance's pending row is cleared
       $ackBody = if ($pendingInstanceId) { '{"instanceId":"' + $pendingInstanceId + '"}' } else { '{}' }
-      Invoke-RestMethod -Method Post -Uri "$API_URL/api/config/ack" \`
+      Invoke-RestMethod -Method Post -Uri "$API_URL/config/ack" \`
         -Headers @{ "Authorization" = "Bearer $TOKEN" } \`
         -ContentType "application/json" -Body $ackBody | Out-Null
     }
@@ -676,7 +676,7 @@ server.registerTool(
       version: version ?? null,
       url: url ?? null,
     };
-    const res = await api("/api/instances/register", {
+    const res = await api("/instances/register", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -711,7 +711,7 @@ server.registerTool(
         content: string;
         createdAt: string;
       }>
-    >("/api/prompts/pending");
+    >("/prompts/pending");
     if (!res.ok) {
       return {
         content: [{ type: "text", text: formatError(res.status, res.data, res.configError) }],
@@ -771,7 +771,7 @@ server.registerTool(
       .digest("hex");
 
     // Server-to-server call to Conduit API — URL from environment config, not user input.
-    const res = await fetch(`${API_URL}/api/hooks`, { // codeql[js/file-access-to-http] — server-to-server; API_URL from env config
+    const res = await fetch(`${API_URL}/hooks`, { // codeql[js/file-access-to-http] — server-to-server; API_URL from env config
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -823,7 +823,7 @@ server.registerTool(
         updatedAt: string;
       }>;
       total: number;
-    }>(`/api/sessions?limit=${limit ?? 20}`);
+    }>(`/sessions?limit=${limit ?? 20}`);
     if (!res.ok) {
       return {
         content: [{ type: "text", text: formatError(res.status, res.data, res.configError) }],
@@ -870,7 +870,7 @@ server.registerTool(
         toolCalls?: Array<{ name: string; input: unknown }>;
       }>;
       tokenUsage?: { input: number; output: number; cacheRead?: number };
-    }>(`/api/sessions/${sessionId}`);
+    }>(`/sessions/${sessionId}`);
     if (!res.ok) {
       return {
         content: [{ type: "text", text: formatError(res.status, res.data, res.configError) }],
@@ -909,7 +909,7 @@ server.registerTool(
       status: status ?? "delivered",
       error: error ?? undefined,
     };
-    const res = await api(`/api/prompts/${promptId}/ack`, {
+    const res = await api(`/prompts/${promptId}/ack`, {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -1066,7 +1066,7 @@ async function sendConfigSync(): Promise<void> {
 
   try {
     // codeql[js/file-access-to-http] — server-to-server call; API_URL from env config.
-    const res = await fetch(`${API_URL}/api/hooks`, {
+    const res = await fetch(`${API_URL}/hooks`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -1101,7 +1101,7 @@ async function sendModelsSync(models: typeof CLAUDE_MODELS): Promise<void> {
 
   try {
     // codeql[js/file-access-to-http] — server-to-server call; API_URL from env config.
-    const res = await fetch(`${API_URL}/api/hooks`, {
+    const res = await fetch(`${API_URL}/hooks`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -1178,7 +1178,7 @@ server.registerTool(
   },
   async ({ period }) => {
     const res = await api<Record<string, unknown>>(
-      `/api/metrics?period=${period ?? "today"}`,
+      `/metrics?period=${period ?? "today"}`,
     );
     if (!res.ok) {
       return {
@@ -1214,7 +1214,7 @@ function startPromptStream(): void {
 
   async function connect(): Promise<void> {
     if (stopped) return;
-    const url = `${API_URL}/api/prompts/stream`;
+    const url = `${API_URL}/prompts/stream`;
     log(`Prompt stream: connecting to ${url}`);
 
     try {
@@ -1285,7 +1285,7 @@ function startPromptStream(): void {
               // Immediately ack as delivered so the dashboard UI updates.
               // The agent still needs to act on the content, but the status
               // "delivered" means the notification reached the agent process.
-              await api(`/api/prompts/${prompt.id}/ack`, {
+              await api(`/prompts/${prompt.id}/ack`, {
                 method: "POST",
                 body: JSON.stringify({ status: "delivered" }),
               }).catch(() => {

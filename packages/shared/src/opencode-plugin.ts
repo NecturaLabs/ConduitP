@@ -32,7 +32,7 @@ async function send(eventType, sessionId, data) {
     const payload = JSON.stringify({ event: eventType, timestamp: isoNow, sessionId, data });
     const { createHmac } = await import("node:crypto");
     const sig = createHmac("sha256", TOKEN).update(\`\${ts}.\${payload}\`).digest("hex");
-    await fetch(\`\${API_URL}/api/hooks\`, {
+    await fetch(\`\${API_URL}/hooks\`, {
       method: "POST",
       headers: {
         "Authorization": \`Bearer \${TOKEN}\`,
@@ -47,7 +47,7 @@ async function send(eventType, sessionId, data) {
 
 // ---------------------------------------------------------------------------
 // Batched event queue — buffers events for up to 1 second then flushes them
-// in a single POST /api/hooks/batch request. Reduces ~40 req/sec to ~1 req/sec
+// in a single POST /hooks/batch request. Reduces ~40 req/sec to ~1 req/sec
 // during active OpenCode generation (message.part.updated bursts).
 //
 // Early flush is triggered on session.idle, session.compacted, and session.error
@@ -70,7 +70,7 @@ async function _flushQueue() {
     const ts = Date.now();
     const body = JSON.stringify({ events: batch });
     const sig = createHmac("sha256", TOKEN).update(\`\${ts}.\${body}\`).digest("hex");
-    const res = await fetch(\`\${API_URL}/api/hooks/batch\`, {
+    const res = await fetch(\`\${API_URL}/hooks/batch\`, {
       method: "POST",
       headers: {
         "Authorization": \`Bearer \${TOKEN}\`,
@@ -160,7 +160,7 @@ async function syncModelsToConduit(client) {
 
 async function applyPendingConfig(client) {
   try {
-    const resp = await fetch(\`\${API_URL}/api/config/pending\`, {
+    const resp = await fetch(\`\${API_URL}/config/pending\`, {
       headers: { "Authorization": \`Bearer \${TOKEN}\` },
     });
     if (!resp.ok) return;
@@ -186,7 +186,7 @@ async function applyPendingConfig(client) {
       } catch (_) { /* best-effort: file was written, runtime update failed */ }
     }
 
-    await fetch(\`\${API_URL}/api/config/ack\`, {
+    await fetch(\`\${API_URL}/config/ack\`, {
       method: "POST",
       headers: { "Authorization": \`Bearer \${TOKEN}\`, "Content-Type": "application/json" },
       body: "{}",
@@ -274,7 +274,7 @@ async function _doInjectPendingPrompts(client, idleSessionId) {
   if (_injecting || !client) return;
   _injecting = true;
   try {
-    const resp = await fetch(\`\${API_URL}/api/prompts/pending\`, {
+    const resp = await fetch(\`\${API_URL}/prompts/pending\`, {
       headers: { "Authorization": \`Bearer \${TOKEN}\` },
     });
     if (!resp.ok) return;
@@ -310,7 +310,7 @@ async function _doInjectPendingPrompts(client, idleSessionId) {
         }
 
         // ACK the prompt as delivered
-        await fetch(\`\${API_URL}/api/prompts/\${prompt.id}/ack\`, {
+        await fetch(\`\${API_URL}/prompts/\${prompt.id}/ack\`, {
           method: "POST",
           headers: {
             "Authorization": \`Bearer \${TOKEN}\`,
@@ -321,7 +321,7 @@ async function _doInjectPendingPrompts(client, idleSessionId) {
       } catch (err) {
         // ACK as failed so it doesn't get retried forever
         try {
-          await fetch(\`\${API_URL}/api/prompts/\${prompt.id}/ack\`, {
+          await fetch(\`\${API_URL}/prompts/\${prompt.id}/ack\`, {
             method: "POST",
             headers: {
               "Authorization": \`Bearer \${TOKEN}\`,
@@ -351,7 +351,7 @@ function startPromptStream(client) {
   async function connect() {
     if (stopped) return;
     try {
-      const res = await fetch(\`\${API_URL}/api/prompts/stream\`, {
+      const res = await fetch(\`\${API_URL}/prompts/stream\`, {
         headers: { "Authorization": \`Bearer \${TOKEN}\` },
       });
       if (!res.ok || !res.body) throw new Error("HTTP " + res.status);
@@ -408,7 +408,7 @@ export const ConduitPlugin = ({ client }) => {
       // Passing it lets the Conduit server use direct HTTP injection (Path A)
       // instead of the unreliable SSE -> poll -> promptAsync chain (Path B).
       const opencodeUrl = process.env["OPENCODE_URL"] ?? null;
-      await fetch(\`\${API_URL}/api/instances/register\`, {
+      await fetch(\`\${API_URL}/instances/register\`, {
         method: "POST",
         headers: { "Authorization": \`Bearer \${TOKEN}\`, "Content-Type": "application/json" },
         body: JSON.stringify({ name, type: "opencode", url: opencodeUrl }),
