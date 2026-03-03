@@ -5,10 +5,10 @@ A self-hosted, mobile-first dashboard for monitoring and controlling AI coding a
 
 ## Tech Stack
 - **Monorepo:** Turborepo + Bun workspaces (`apps/*`, `packages/*`, `cli/`)
-- **Runtime / Package Manager:** Bun v1.0+ (uses **bun** everywhere — not npm)
+- **Runtime / Package Manager:** Bun v1.3+ (uses **bun** everywhere — not npm)
 - **TypeScript:** v5.7+, ES2022, strict mode with `noUncheckedIndexedAccess`
-- **Frontend (Dashboard):** React 19 + Vite 6 + Tailwind CSS v4, Zustand 5, TanStack Query 5, React Router DOM 7, Recharts 2, CodeMirror 6
-- **Frontend (Landing):** Next.js 15 (static export) + React 19 + Tailwind CSS v4
+- **Frontend (Dashboard):** React 19 + Vite 7 + Tailwind CSS v4, Zustand 5, TanStack Query 5, React Router DOM 7, Recharts 3, CodeMirror 6
+- **Frontend (Landing):** Next.js 16 (static export) + React 19 + Tailwind CSS v4
 - **Backend:** Fastify v5 + Zod validation + hand-rolled JWT (HMAC-SHA256)
 - **Database:** SQLite via `bun:sqlite` (WAL mode, foreign keys)
 - **Email:** Resend SDK (magic link auth)
@@ -200,6 +200,7 @@ packages/
     #   list_sessions       — List recent sessions tracked by Conduit
     #   get_session         — Get full session detail (messages, tool calls, token usage)
     #   ack_prompt          — Acknowledge a delivered/failed prompt
+    #   sync_models         — Sync available model list to dashboard
     #   get_metrics         — Fetch usage metrics (today/week/month/all)
     # Auto-bootstrap on startup:
     #   - Installs OpenCode plugin to ~/.config/opencode/plugins/conduit.js if opencode config dir exists
@@ -238,8 +239,8 @@ nginx/
 
 ### Authentication
 - **Magic link email** via Resend: 256-bit entropy token, SHA-256 hashed in DB, 15-min TTL, single-use
-- **JWT access tokens:** Hand-rolled HMAC-SHA256, 2-hour expiry, `httpOnly` + `Secure` + `SameSite=none` cookies
-- **JWT refresh tokens:** 7-day expiry, family-based rotation with **reuse detection** (compromised family revoked entirely)
+- **JWT access tokens:** Hand-rolled HMAC-SHA256, 2-hour expiry, `httpOnly` + `Secure` + `SameSite` derived (`lax` same-site, `none` cross-origin; Capacitor forced `lax`)
+- **JWT refresh tokens:** 30-day expiry, family-based rotation with **reuse detection** (compromised family revoked entirely)
 - **Access token revocation:** Tracked in `revoked_access_tokens` table with TTL
 - **CSRF protection:** `X-Requested-With: XMLHttpRequest` header required on all mutating requests
 - **Frontend auto-refresh:** API client transparently retries on 401, coalescing concurrent refresh attempts
@@ -272,7 +273,7 @@ Agent installation uses an OAuth-style device flow. The terminal runs a bootstra
 An alternative install method — users add Conduit as an MCP server in their agent config. On startup it:
 - Auto-bootstraps push hooks for detected agents (OpenCode plugin, Claude Code settings.json)
 - Connects to `GET /api/prompts/stream` (SSE) and forwards `prompt.queued` events as MCP `logging` notifications at `emergency` level so the agent sees and acts on them
-- Exposes 7 MCP tools for session management, prompt relay, metrics, and event reporting
+- Exposes 8 MCP tools for session management, prompt relay, metrics, and event reporting
 
 ### SSE Relay
 - Backend proxies OpenCode's `/global/event` SSE stream to the authenticated frontend
@@ -326,7 +327,7 @@ An alternative install method — users add Conduit as an MCP server in their ag
 
 ## Important Notes
 - Server Dockerfile runs Bun natively — no `tsc` build step. Bun transpiles TypeScript at runtime.
-- Docker images pin Bun to `1.2` minor series (e.g. `oven/bun:1.2-alpine`).
+- Docker images pin Bun to `1.3` minor series (e.g. `oven/bun:1.3-alpine`).
 - `.dockerignore` excludes `.git`, `node_modules`, build outputs, docs, and CI files to minimize Docker context.
 - `netlify.toml` uses `--frozen-lockfile` for reproducible installs.
 - GitHub Actions runners: set `TRUSTED_ACTORS` variable (comma-separated GitHub usernames, e.g. `Nectura`) to use self-hosted runners for those actors; all others use `ubuntu-latest`.

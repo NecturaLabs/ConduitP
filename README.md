@@ -77,7 +77,7 @@ docker compose up -d --force-recreate server
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) v1.0+
+- [Bun](https://bun.sh) v1.3+
 - [Docker](https://docker.com) (for production builds)
 
 ### Setup
@@ -166,17 +166,17 @@ The MCP server handles all communication with Conduit — no additional configur
 | Frontend | React 19, Vite, Tailwind CSS v4, Zustand, TanStack Query |
 | Backend | Fastify v5, SQLite (bun:sqlite), Zod |
 | Auth | Magic link email (Resend), JWT (httpOnly cookies), OAuth 2.0 PKCE (GitHub, GitLab) |
-| Landing | Next.js 15 (static export) |
+| Landing | Next.js 16 (static export) |
 | Infra | Docker, Nginx |
 | Runtime | Bun |
 
 ## Security
 
 - Magic link tokens: 256-bit entropy, SHA-256 hashed, 15-min TTL, single-use
-- JWT: HMAC-SHA256, httpOnly/Secure/SameSite=Strict cookies, 2-hour access + 7-day refresh with rotation
+- JWT: HMAC-SHA256, httpOnly/Secure cookies with SameSite derived (lax same-site, none cross-origin; Capacitor forced lax), 2-hour access + 30-day refresh with rotation
 - Webhook receiver: HMAC-SHA256 signature + timestamp replay protection
 - All SQL: prepared statements only
-- CSRF: custom header verification
+- CSRF: `X-Requested-With: XMLHttpRequest` header + Origin allowlist
 - TLS 1.2+ with ECDSA P-256 certs (self-hosted)
 
 ## Deployment
