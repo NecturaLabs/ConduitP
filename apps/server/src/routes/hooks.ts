@@ -660,9 +660,17 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
       bodyLimit: 1_048_576, // 1 MB — webhook payloads should be small JSON
     },
     async (request, reply) => {
+      fastify.log.info('[hooks] POST /hooks received — headers: %s', JSON.stringify({
+        'content-type': request.headers['content-type'],
+        'x-conduit-timestamp': request.headers['x-conduit-timestamp'],
+        'x-conduit-signature': request.headers['x-conduit-signature'] ? '(present)' : '(missing)',
+        authorization: request.headers['authorization'] ? '(present)' : '(missing)',
+      }));
+
       // 1. Resolve the hook token to a user
       const resolution = resolveHookTokenUser(request);
       if (!resolution) {
+        fastify.log.warn('[hooks] Auth failed — no valid token resolution');
         const error: ApiError = {
           error: 'Unauthorized',
           message: 'Invalid or missing authorization token',
@@ -929,6 +937,10 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
       // SSE event types the frontend listeners expect (e.g. "session.created").
       // The original event name is preserved in the data payload for traceability.
       const sseEventType = toSSEEventType(payload.event);
+      fastify.log.info(
+        '[hooks] Event stored — eventId=%s instanceId=%s event=%s sessionId=%s sseType=%s sseClients=%d',
+        eventId, instanceId, payload.event, payload.sessionId, sseEventType ?? '(suppressed)', eventBus.clientCount,
+      );
       if (sseEventType !== null) {
         eventBus.emit(sseEventType, {
           id: eventId,
@@ -1005,9 +1017,12 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
       bodyLimit: 5_242_880, // 5 MB — batch of up to 500 events
     },
     async (request, reply) => {
+      fastify.log.info('[hooks/batch] POST /hooks/batch received — events count: %s', Array.isArray((request.body as Record<string, unknown>)?.events) ? (request.body as { events: unknown[] }).events.length : 'N/A');
+
       // 1. Resolve hook token → user (same as single endpoint)
       const resolution = resolveHookTokenUser(request);
       if (!resolution) {
+        fastify.log.warn('[hooks/batch] Auth failed — no valid token resolution');
         const error: ApiError = { error: 'Unauthorized', message: 'Invalid or missing authorization token', statusCode: 401 };
         return reply.code(401).send(error);
       }
@@ -1235,6 +1250,7 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
 
       // 7. Broadcast all events to SSE clients (outside transaction — non-critical).
       // Apply the same Claude Code → SSE event type mapping as the single-event route.
+      fastify.log.info('[hooks/batch] Broadcasting %d events — instanceId=%s sseClients=%d', validEvents.length, instanceId, eventBus.clientCount);
       for (const { payload, eventId } of validEvents) {
         const sseEventType = toSSEEventType(payload.event);
         if (sseEventType !== null) {

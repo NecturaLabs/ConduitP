@@ -735,6 +735,7 @@ server.registerTool(
       type: type ?? INSTANCE_TYPE,
       version: version ?? null,
       url: url ?? null,
+      mcpServerVersion: PKG_VERSION,
     };
     const res = await api("/instances/register", {
       method: "POST",
@@ -1438,10 +1439,11 @@ async function main() {
       name: INSTANCE_NAME,
       type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
       version: cliVersion,
+      mcpServerVersion: PKG_VERSION,
     }),
   }).then((res) => {
     if (res.ok) {
-      log(`Instance registered (type: ${INSTANCE_TYPE}, version: ${cliVersion})`);
+      log(`Instance registered (type: ${INSTANCE_TYPE}, version: ${cliVersion}, mcp: ${PKG_VERSION})`);
     } else {
       log(`Instance registration failed: HTTP ${res.status}`);
     }
@@ -1469,6 +1471,7 @@ async function main() {
       body: JSON.stringify({
         type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
         version: cliVersion,
+        mcpServerVersion: PKG_VERSION,
       }),
     }).catch(() => {});
   }, 60_000);

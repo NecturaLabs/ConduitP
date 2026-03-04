@@ -8,6 +8,7 @@ export interface Instance {
   type: AgentType;
   url: string | null;
   version: string | null;
+  mcpServerVersion: string | null;
   status: InstanceStatus;
   lastSeen: string;
   createdAt: string;

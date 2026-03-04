@@ -20,6 +20,7 @@ export async function eventRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const userId = request.user!.id;
+      fastify.log.info('[sse] New SSE connection — userId=%s', userId);
 
       // Enforce per-user connection limit
       const current = sseConnectionCounts.get(userId) ?? 0;
@@ -63,6 +64,7 @@ export async function eventRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       // Send an initial "connected" event so the client knows the stream is live
+      fastify.log.info('[sse] SSE stream established — userId=%s instances=%d origin=%s', userId, userInstanceIds.size, corsOrigin);
       reply.raw.write(`event: connected\n${encodeSSEData(JSON.stringify({ message: 'SSE stream connected' }))}\n\n`);
 
       // Subscribe this client to the event bus, filtering to user's instances
@@ -77,10 +79,14 @@ export async function eventRoutes(fastify: FastifyInstance): Promise<void> {
               const exists = fastify.db.query(
                 `SELECT 1 FROM instances WHERE id = ? AND user_id = ?`,
               ).get(instanceId, userId);
-              if (!exists) return;
+              if (!exists) {
+                fastify.log.info('[sse] Event filtered out — instanceId=%s not owned by userId=%s', instanceId, userId);
+                return;
+              }
               userInstanceIds.add(instanceId);
             }
           }
+          fastify.log.info('[sse] Forwarding event to client — userId=%s event=%s instanceId=%s', userId, eventType, instanceId ?? '(none)');
           reply.raw.write(`event: ${sanitizeEventType(eventType)}\n${encodeSSEData(data)}\n\n`);
         } catch {
           unsubscribe();
@@ -99,6 +105,7 @@ export async function eventRoutes(fastify: FastifyInstance): Promise<void> {
 
       // Clean up on client disconnect
       request.raw.on('close', () => {
+        fastify.log.info('[sse] Client disconnected — userId=%s', userId);
         clearInterval(heartbeat);
         unsubscribe();
         const count = sseConnectionCounts.get(userId) ?? 1;

@@ -21,15 +21,38 @@ const registerInstanceSchema = z.object({
   type: z.enum(['opencode', 'claude-code']),
   url: z.string().url().optional(),
   version: z.string().max(50).optional(),
+  mcpServerVersion: z.string().max(50).optional(),
 });
 
+/** In-memory store for dynamic version info sent via register/heartbeat. */
+interface InstanceVersionInfo {
+  version: string | null;
+  mcpServerVersion: string | null;
+}
+const instanceVersions = new Map<string, InstanceVersionInfo>();
+
+/** Update the in-memory version cache for an instance. */
+function setInstanceVersions(
+  instanceId: string,
+  version: string | null | undefined,
+  mcpServerVersion: string | null | undefined,
+): void {
+  const existing = instanceVersions.get(instanceId) ?? { version: null, mcpServerVersion: null };
+  if (version !== undefined) existing.version = version;
+  if (mcpServerVersion !== undefined) existing.mcpServerVersion = mcpServerVersion;
+  instanceVersions.set(instanceId, existing);
+}
+
 function mapInstanceRow(row: Record<string, unknown>): Instance {
+  const id = row['id'] as string;
+  const versions = instanceVersions.get(id);
   return {
-    id: row['id'] as string,
+    id,
     name: row['name'] as string,
     type: row['type'] as Instance['type'],
     url: (row['url'] as string) ?? null,
-    version: (row['version'] as string) ?? null,
+    version: versions?.version ?? null,
+    mcpServerVersion: versions?.mcpServerVersion ?? null,
     status: (row['status'] as Instance['status']) ?? 'disconnected',
     lastSeen: normalizeTs(row['last_seen'] as string | null),
     createdAt: normalizeTs(row['created_at'] as string),
@@ -150,8 +173,10 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
         return reply.code(400).send(error);
       }
 
-      const { name, type, url, version } = parsed.data;
+      const { name, type, url, version, mcpServerVersion } = parsed.data;
       const db = fastify.db;
+
+      // Version info is dynamic — store in-memory only, not persisted to DB.
 
       // SSRF protection: validate that the instance URL doesn't point to private networks.
       // OpenCode always runs on localhost (127.0.0.1:4096) — the server and the agent are
@@ -178,9 +203,10 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
         const existing = db.query(existingQuery).get(...existingParams) as Record<string, unknown> | undefined;
         if (existing) {
           db.query(`
-            UPDATE instances SET name = ?, type = ?, version = ?, status = 'connected', last_seen = datetime('now') WHERE id = ?
-          `).run(name, type, version ?? null, existing['id'] as string);
+            UPDATE instances SET name = ?, type = ?, status = 'connected', last_seen = datetime('now') WHERE id = ?
+          `).run(name, type, existing['id'] as string);
 
+          setInstanceVersions(existing['id'] as string, version, mcpServerVersion);
           emitInstanceUpdated(db, existing['id'] as string);
 
           const updated = db.query('SELECT * FROM instances WHERE id = ?').get(existing['id'] as string) as Record<string, unknown>;
@@ -200,9 +226,10 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
         ).get(type, hookUserId) as Record<string, unknown> | undefined;
         if (existing) {
           db.query(
-            `UPDATE instances SET name = ?, version = ?, status = 'connected', last_seen = datetime('now') WHERE id = ?`,
-          ).run(name, version ?? null, existing['id'] as string);
+            `UPDATE instances SET name = ?, status = 'connected', last_seen = datetime('now') WHERE id = ?`,
+          ).run(name, existing['id'] as string);
 
+          setInstanceVersions(existing['id'] as string, version, mcpServerVersion);
           emitInstanceUpdated(db, existing['id'] as string);
 
           const updated = db.query('SELECT * FROM instances WHERE id = ?').get(existing['id'] as string) as Record<string, unknown>;
@@ -214,9 +241,11 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
 
       const id = randomUUID();
       db.query(`
-        INSERT INTO instances (id, name, type, url, version, user_id, status, last_seen, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'connected', datetime('now'), datetime('now'))
-      `).run(id, name, type, url ?? null, version ?? null, hookUserId);
+        INSERT INTO instances (id, name, type, url, user_id, status, last_seen, created_at)
+        VALUES (?, ?, ?, ?, ?, 'connected', datetime('now'), datetime('now'))
+      `).run(id, name, type, url ?? null, hookUserId);
+
+      setInstanceVersions(id, version, mcpServerVersion);
 
       const row = db.query('SELECT * FROM instances WHERE id = ?').get(id) as Record<string, unknown>;
       const instance = mapInstanceRow(row);
@@ -239,6 +268,7 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
   const heartbeatSchema = z.object({
     type: z.enum(['opencode', 'claude-code']),
     version: z.string().optional(),
+    mcpServerVersion: z.string().max(50).optional(),
   });
 
   fastify.post(
@@ -267,15 +297,15 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
         return reply.code(400).send(error);
       }
 
-      const { type, version } = parsed.data;
+      const { type, version, mcpServerVersion } = parsed.data;
       const db = fastify.db;
 
       // Find the most-recently-seen instance of this type for this user.
       const query = hookUserId
-        ? `SELECT id, status, version FROM instances WHERE type = ? AND user_id = ? ORDER BY last_seen DESC LIMIT 1`
-        : `SELECT id, status, version FROM instances WHERE type = ? ORDER BY last_seen DESC LIMIT 1`;
+        ? `SELECT id, status FROM instances WHERE type = ? AND user_id = ? ORDER BY last_seen DESC LIMIT 1`
+        : `SELECT id, status FROM instances WHERE type = ? ORDER BY last_seen DESC LIMIT 1`;
       const params = hookUserId ? [type, hookUserId] : [type];
-      const row = db.query(query).get(...params) as { id: string; status: string; version: string | null } | undefined;
+      const row = db.query(query).get(...params) as { id: string; status: string } | undefined;
 
       if (!row) {
         // No instance registered yet — nothing to heartbeat.
@@ -286,20 +316,19 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
       }
 
       const prevStatus = row.status;
-      const prevVersion = row.version ?? null;
-      // Update last_seen + status, and refresh the version when the heartbeat includes one.
-      if (version) {
-        db.query(
-          `UPDATE instances SET status = 'connected', last_seen = datetime('now'), version = ? WHERE id = ?`,
-        ).run(version, row.id);
-      } else {
-        db.query(
-          `UPDATE instances SET status = 'connected', last_seen = datetime('now') WHERE id = ?`,
-        ).run(row.id);
-      }
+      const prevVersions = instanceVersions.get(row.id);
+
+      // Update last_seen + status in DB (persistent). Versions are in-memory only.
+      db.query(`UPDATE instances SET status = 'connected', last_seen = datetime('now') WHERE id = ?`).run(row.id);
+      setInstanceVersions(row.id, version, mcpServerVersion);
 
       // Emit SSE if status changed or version changed so clients see the latest state.
-      if (prevStatus !== 'connected' || (version !== undefined && version !== prevVersion)) {
+      const newVersions = instanceVersions.get(row.id);
+      if (
+        prevStatus !== 'connected' ||
+        (newVersions?.version !== prevVersions?.version) ||
+        (newVersions?.mcpServerVersion !== prevVersions?.mcpServerVersion)
+      ) {
         emitInstanceUpdated(db, row.id);
       }
 

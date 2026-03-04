@@ -199,6 +199,9 @@ export function Dashboard() {
                           {inst.version && (
                             <span className="text-[var(--color-accent)]"> {inst.version}</span>
                           )}
+                          {inst.mcpServerVersion && (
+                            <span> · MCP {inst.mcpServerVersion}</span>
+                          )}
                         </p>
                       </div>
                       <span

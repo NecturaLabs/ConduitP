@@ -69,6 +69,11 @@ export function AgentCard({ instance }: AgentCardProps) {
                   {instance.type === 'opencode' ? 'OpenCode' : 'Claude Code'}
                   {instance.version ? ` ${instance.version}` : ''}
                 </Badge>
+                {instance.mcpServerVersion && (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    MCP {instance.mcpServerVersion}
+                  </Badge>
+                )}
                 <span className="text-xs text-[var(--color-muted)] truncate">
                   {instance.lastSeen ? relativeTime(instance.lastSeen) : 'never seen'}
                 </span>
