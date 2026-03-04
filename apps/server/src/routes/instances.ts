@@ -181,6 +181,8 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
             UPDATE instances SET name = ?, type = ?, version = ?, status = 'connected', last_seen = datetime('now') WHERE id = ?
           `).run(name, type, version ?? null, existing['id'] as string);
 
+          emitInstanceUpdated(db, existing['id'] as string);
+
           const updated = db.query('SELECT * FROM instances WHERE id = ?').get(existing['id'] as string) as Record<string, unknown>;
           const instance = mapInstanceRow(updated);
           const response: ApiSuccess<{ instance: Instance }> = {
@@ -200,6 +202,9 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
           db.query(
             `UPDATE instances SET name = ?, version = ?, status = 'connected', last_seen = datetime('now') WHERE id = ?`,
           ).run(name, version ?? null, existing['id'] as string);
+
+          emitInstanceUpdated(db, existing['id'] as string);
+
           const updated = db.query('SELECT * FROM instances WHERE id = ?').get(existing['id'] as string) as Record<string, unknown>;
           const instance = mapInstanceRow(updated);
           const response: ApiSuccess<{ instance: Instance }> = { data: { instance } };
@@ -267,10 +272,10 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
 
       // Find the most-recently-seen instance of this type for this user.
       const query = hookUserId
-        ? `SELECT id, status FROM instances WHERE type = ? AND user_id = ? ORDER BY last_seen DESC LIMIT 1`
-        : `SELECT id, status FROM instances WHERE type = ? ORDER BY last_seen DESC LIMIT 1`;
+        ? `SELECT id, status, version FROM instances WHERE type = ? AND user_id = ? ORDER BY last_seen DESC LIMIT 1`
+        : `SELECT id, status, version FROM instances WHERE type = ? ORDER BY last_seen DESC LIMIT 1`;
       const params = hookUserId ? [type, hookUserId] : [type];
-      const row = db.query(query).get(...params) as { id: string; status: string } | undefined;
+      const row = db.query(query).get(...params) as { id: string; status: string; version: string | null } | undefined;
 
       if (!row) {
         // No instance registered yet — nothing to heartbeat.
@@ -281,6 +286,7 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
       }
 
       const prevStatus = row.status;
+      const prevVersion = row.version ?? null;
       // Update last_seen + status, and refresh the version when the heartbeat includes one.
       if (version) {
         db.query(
@@ -292,8 +298,8 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
         ).run(row.id);
       }
 
-      // Only emit SSE if the status actually changed (e.g. was 'disconnected').
-      if (prevStatus !== 'connected') {
+      // Emit SSE if status changed or version changed so clients see the latest state.
+      if (prevStatus !== 'connected' || (version !== undefined && version !== prevVersion)) {
         emitInstanceUpdated(db, row.id);
       }
 
