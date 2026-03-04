@@ -214,7 +214,7 @@ function formatError(status: number, data: unknown, configError?: string): strin
  *  AND injects pending prompts from the Conduit dashboard into the active session
  *  using the OpenCode plugin SDK's `client.session.promptAsync()`. */
 function openCodePluginJS(): string {
-  return generateOpenCodePluginSource(HOOK_TOKEN, API_URL);
+  return generateOpenCodePluginSource(HOOK_TOKEN, API_URL, PKG_VERSION);
 }
 
 /** Generate the Claude Code bash hook helper script. */
@@ -430,7 +430,7 @@ try { $hook = $rawBody | ConvertFrom-Json } catch { exit 0 }
 $event   = if ($hook.hook_event_name) { $hook.hook_event_name } else { "PostToolUse" }
 $session = if ($hook.session_id)      { $hook.session_id } 
   elseif ($hook.sessionId)            { $hook.sessionId }
-  elseif ($hook.session)              { $hook.session }
+  elseif ($hook.session -is [string]) { $hook.session }
   elseif ($hook.session.id)           { $hook.session.id }
   else                                { "unknown" }
 $isoNow  = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -1466,20 +1466,27 @@ async function main() {
     if (res.ok) {
       log(`Instance registered (type: ${INSTANCE_TYPE}, version: ${cliVersion}, mcp: ${PKG_VERSION})`);
     } else {
-      log(`Instance registration failed: HTTP ${res.status}`);
+      log(`Instance registration failed: HTTP ${res.status} — ${JSON.stringify(res.data)}`);
     }
-  }).catch(() => {});
+  }).catch((err) => {
+    log(`Instance registration error: ${err}`);
+  });
 
   // Config + model sync: always run so the dashboard is populated on first install,
   // even before the OpenCode plugin has been loaded (it's written by bootstrapPushHooks
   // above, but OpenCode only loads plugins at startup — not at runtime).
   // The OpenCode plugin will also send these on its own startup after the next restart;
   // the server upserts both gracefully so duplicate syncs are harmless.
-  void sendConfigSync().catch(() => {});
+  void sendConfigSync().catch((err) => {
+    log(`config.sync startup error: ${err}`);
+  });
   void fetchProviderModels().then(async (providerModels) => {
     await sendModelsSync(providerModels ?? CLAUDE_MODELS);
-  }).catch(() => {
-    void sendModelsSync(CLAUDE_MODELS);
+  }).catch((err) => {
+    log(`models.sync startup error: ${err}`);
+    void sendModelsSync(CLAUDE_MODELS).catch((err2) => {
+      log(`models.sync fallback error: ${err2}`);
+    });
   });
 
   // Heartbeat: keep the instance marked 'connected' every 60 seconds.
@@ -1487,19 +1494,32 @@ async function main() {
   // would be marked 'disconnected' by the server health checker.
   // Include the CLI version so it stays current even if detection was slow on startup.
   const heartbeatInterval = setInterval(() => {
-    if (!cliVersion) {
-      void detectCliVersion().then((detected) => {
-        if (detected) cliVersion = detected;
-      }).catch(() => {});
-    }
-    void api("/instances/heartbeat", {
-      method: "POST",
-      body: JSON.stringify({
-        type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
-        version: cliVersion,
-        mcpServerVersion: PKG_VERSION,
-      }),
-    }).catch(() => {});
+    void (async () => {
+      // Await version detection so it's included in THIS heartbeat, not the next one
+      if (!cliVersion) {
+        try {
+          const detected = await detectCliVersion();
+          if (detected) cliVersion = detected;
+        } catch (err) {
+          log(`CLI version detection error: ${err}`);
+        }
+      }
+      try {
+        const res = await api("/instances/heartbeat", {
+          method: "POST",
+          body: JSON.stringify({
+            type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
+            version: cliVersion,
+            mcpServerVersion: PKG_VERSION,
+          }),
+        });
+        if (!res.ok) {
+          log(`Heartbeat failed: HTTP ${res.status} — ${JSON.stringify(res.data)}`);
+        }
+      } catch (err) {
+        log(`Heartbeat error: ${err}`);
+      }
+    })();
   }, 60_000);
 
   process.on("SIGINT", () => { clearInterval(heartbeatInterval); });

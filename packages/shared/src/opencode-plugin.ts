@@ -17,6 +17,7 @@
 export function generateOpenCodePluginSource(
   token: string,
   apiUrl: string,
+  mcpServerVersion?: string,
 ): string {
   return `// Conduit OpenCode plugin — auto-generated, do not edit.
 // Forwards OpenCode session/message events to the Conduit API.
@@ -24,6 +25,8 @@ export function generateOpenCodePluginSource(
 // Injects pending prompts from the dashboard into the active agent session.
 const TOKEN = ${JSON.stringify(token)};
 const API_URL = ${JSON.stringify(apiUrl)};
+const MCP_SERVER_VERSION = ${JSON.stringify(mcpServerVersion ?? null)};
+
 
 async function send(eventType, sessionId, data) {
   try {
@@ -42,7 +45,7 @@ async function send(eventType, sessionId, data) {
       },
       body: payload,
     });
-  } catch (_) { /* fire-and-forget */ }
+  } catch (e) { console.error("[conduit] send error:", e); }
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +88,11 @@ async function _flushQueue() {
       for (const ev of batch) {
         await send(ev.event, ev.sessionId, ev.data);
       }
+    } else if (!res.ok) {
+      console.error("[conduit] batch flush failed: HTTP", res.status, await res.text().catch(() => ""));
     }
-  } catch (_) {
-    // Best-effort — events are fire-and-forget
+  } catch (e) {
+    console.error("[conduit] batch flush error:", e);
   }
 }
 
@@ -125,7 +130,7 @@ async function syncConfigToConduit() {
     try { raw = await readFile(path, "utf8"); } catch { raw = "{}"; }
     try { JSON.parse(raw); } catch { return; }
     await send("config.sync", "conduit-config", { agentType: 'opencode', content: raw });
-  } catch (_) { /* best-effort */ }
+  } catch (e) { console.error("[conduit] syncConfigToConduit error:", e); }
 }
 
 async function syncModelsToConduit(client) {
@@ -155,7 +160,7 @@ async function syncModelsToConduit(client) {
 
     if (models.length === 0) return;
     await send("models.sync", "conduit-models", { agentType: 'opencode', models });
-  } catch (_) { /* best-effort */ }
+  } catch (e) { console.error("[conduit] syncModelsToConduit error:", e); }
 }
 
 async function applyPendingConfig(client) {
@@ -183,7 +188,7 @@ async function applyPendingConfig(client) {
     if (client?.config?.update) {
       try {
         await client.config.update({ body: parsedConfig });
-      } catch (_) { /* best-effort: file was written, runtime update failed */ }
+      } catch (e) { console.error("[conduit] config hot-apply failed:", e); }
     }
 
     await fetch(\`\${API_URL}/config/ack\`, {
@@ -191,7 +196,7 @@ async function applyPendingConfig(client) {
       headers: { "Authorization": \`Bearer \${TOKEN}\`, "Content-Type": "application/json" },
       body: "{}",
     });
-  } catch (_) { /* best-effort */ }
+  } catch (e) { console.error("[conduit] applyPendingConfig error:", e); }
 }
 
 function extractSessionId(type, props) {
@@ -329,10 +334,10 @@ async function _doInjectPendingPrompts(client, idleSessionId) {
             },
             body: JSON.stringify({ status: "failed", error: String(err) }),
           });
-        } catch (_) { /* best-effort */ }
+        } catch (_) { /* best-effort ack */ }
       }
     }
-  } catch (_) { /* best-effort */ }
+  } catch (e) { console.error("[conduit] injectPendingPrompts error:", e); }
   finally { _injecting = false; }
 }
 
@@ -429,9 +434,9 @@ export const ConduitPlugin = ({ client }) => {
       await fetch(\`\${API_URL}/instances/register\`, {
         method: "POST",
         headers: { "Authorization": \`Bearer \${TOKEN}\`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name, type: "opencode", url: opencodeUrl, version }),
+        body: JSON.stringify({ name, type: "opencode", url: opencodeUrl, version, mcpServerVersion: MCP_SERVER_VERSION }),
       });
-    } catch (_) { /* best-effort */ }
+    } catch (e) { console.error("[conduit] instance registration error:", e); }
 
     await syncConfigToConduit();
     await syncModelsToConduit(client);

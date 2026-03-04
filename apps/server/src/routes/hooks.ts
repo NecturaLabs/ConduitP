@@ -761,6 +761,10 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
         : signatureHeader;
 
       if (!verifyHmacSignature(hmacSecret, signingData, signature)) {
+        fastify.log.warn(
+          { bodyLength: rawBody.length, bodyPrefix: rawBody.slice(0, 200) },
+          '[hooks] HMAC signature verification failed on POST /hooks',
+        );
         const error: ApiError = {
           error: 'Unauthorized',
           message: 'Invalid signature',
@@ -1062,6 +1066,10 @@ export async function hookRoutes(fastify: FastifyInstance): Promise<void> {
       const signingData = `${timestampHeader}.${rawBody}`;
       const signature = signatureHeader.startsWith('sha256=') ? signatureHeader.slice(7) : signatureHeader;
       if (!verifyHmacSignature(hmacSecret, signingData, signature)) {
+        fastify.log.warn(
+          { bodyLength: rawBody.length, bodyPrefix: rawBody.slice(0, 200) },
+          '[hooks] HMAC signature verification failed on POST /hooks/batch',
+        );
         const error: ApiError = { error: 'Unauthorized', message: 'Invalid signature', statusCode: 401 };
         return reply.code(401).send(error);
       }

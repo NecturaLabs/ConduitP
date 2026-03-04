@@ -71,6 +71,10 @@ export function resolveHookTokenUser(request: FastifyRequest): HookTokenResoluti
     return { userId: null };
   }
 
+  request.server.log.warn(
+    { tokenHashPrefix: tokenHash.slice(0, 8) },
+    'Hook token auth failed: no matching per-user token or global token',
+  );
   return null;
 }
 
