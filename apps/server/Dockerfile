@@ -1,34 +1,26 @@
-# Bun version must match package.json's packageManager to keep bun.lock frozen.
-# To pin to a digest, run `docker inspect --format='{{index .RepoDigests 0}}'` and replace this tag.
-FROM oven/bun:1.3.9-alpine
-RUN addgroup -g 1001 conduit && adduser -u 1001 -G conduit -s /bin/sh -D conduit
+FROM oven/bun:1.3.9-alpine AS deps
 WORKDIR /app
 
-# Copy manifests for dependency resolution
+# Install server deps using workspace metadata only
 COPY package.json bun.lock tsconfig.base.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY apps/server/package.json ./apps/server/
-COPY apps/web/package.json ./apps/web/
-COPY apps/landing/package.json ./apps/landing/
-COPY apps/mobile/package.json ./apps/mobile/
-COPY packages/mcp-server/package.json ./packages/mcp-server/
+COPY apps/*/package.json ./apps/
+COPY packages/*/package.json ./packages/
 COPY cli/package.json ./cli/
+RUN bun install --frozen-lockfile --production --ignore-scripts --filter @conduit/server
 
-# Install deps — workspace symlinks are created here.
-# --ignore-scripts prevents malicious postinstall hooks from executing during CI builds.
-RUN bun install --frozen-lockfile --ignore-scripts
+FROM oven/bun:1.3.9-alpine
+WORKDIR /app
 
-# Copy shared package source (for @conduit/shared type resolution)
-COPY packages/shared/src ./packages/shared/src
-COPY packages/shared/tsconfig.json ./packages/shared/
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/server/package.json ./apps/server/package.json
+COPY --from=deps /app/packages/shared/package.json ./packages/shared/package.json
 
-# Copy server source
+# Copy server + shared source only
 COPY apps/server/src ./apps/server/src
-COPY apps/server/tsconfig.json ./apps/server/
+COPY apps/server/tsconfig.json ./apps/server/tsconfig.json
+COPY packages/shared/src ./packages/shared/src
+COPY packages/shared/tsconfig.json ./packages/shared/tsconfig.json
 
-# Bun runs TypeScript natively — no tsc build needed
-# All @conduit/shared imports are `import type` (erased by Bun's transpiler)
-RUN mkdir -p /app/data && chown -R conduit:conduit /app
-USER conduit
+RUN mkdir -p /app/data
 EXPOSE 3443
 CMD ["bun", "run", "apps/server/src/index.ts"]
