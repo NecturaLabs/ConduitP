@@ -130,9 +130,11 @@ CREATE INDEX IF NOT EXISTS idx_hook_tokens_hash ON hook_tokens(token_hash);
 -- Pre-aggregated metrics counters — one row per user+instance+hour+metric.
 -- Written inline (no buffer) by MetricsAggregator on every hook event.
 -- Eliminates expensive json_extract scans on hook_events at query time.
+-- instance_id has no FK constraint so counter rows can be rolled up under a
+-- '__deleted__' sentinel when an instance is removed, preserving user-level totals.
 CREATE TABLE IF NOT EXISTS metrics_counters (
   user_id     TEXT NOT NULL REFERENCES users(id),
-  instance_id TEXT NOT NULL REFERENCES instances(id),
+  instance_id TEXT NOT NULL,
   hour_bucket TEXT NOT NULL,  -- ISO hour string e.g. '2026-02-24T14:00:00Z'
   metric      TEXT NOT NULL CHECK(metric IN ('sessions', 'messages', 'tool_calls', 'tokens', 'cost')),
   value       REAL NOT NULL DEFAULT 0,

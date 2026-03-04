@@ -109,6 +109,38 @@ export function runMigrations(db: Database): void {
     // Always ensure index exists (handles partial upgrades and new installs via SCHEMA)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_pending_prompts_user ON pending_prompts(user_id)`);
 
+    // ── Drop FK constraint from metrics_counters.instance_id ─────────────
+    // Previously instance_id had REFERENCES instances(id) (and NOT NULL).
+    // We drop the FK so counter rows can survive instance deletion by being
+    // rolled up under a '__deleted__' sentinel instance_id, preserving
+    // user-level totals. The user_id FK remains for user isolation.
+    // Detection: if foreign_key_list reports a FK on metrics_counters, recreate.
+    const mcFks = db.query(`PRAGMA foreign_key_list(metrics_counters)`).all() as Array<{ table: string; from: string }>;
+    const hasMcInstanceFk = mcFks.some(fk => fk.from === 'instance_id' && fk.table === 'instances');
+    if (hasMcInstanceFk) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS metrics_counters_new (
+          user_id     TEXT NOT NULL REFERENCES users(id),
+          instance_id TEXT NOT NULL,
+          hour_bucket TEXT NOT NULL,
+          metric      TEXT NOT NULL CHECK(metric IN ('sessions', 'messages', 'tool_calls', 'tokens', 'cost')),
+          value       REAL NOT NULL DEFAULT 0,
+          UNIQUE(user_id, instance_id, hour_bucket, metric)
+        )
+      `);
+      db.exec(`
+        INSERT OR IGNORE INTO metrics_counters_new (user_id, instance_id, hour_bucket, metric, value)
+        SELECT user_id, instance_id, hour_bucket, metric, value
+        FROM metrics_counters
+      `);
+      db.exec(`DROP TABLE metrics_counters`);
+      db.exec(`ALTER TABLE metrics_counters_new RENAME TO metrics_counters`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_metrics_counters_user_hour ON metrics_counters(user_id, hour_bucket)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_metrics_counters_instance ON metrics_counters(instance_id, hour_bucket)`);
+      // eslint-disable-next-line no-console
+      console.log('[migration] Dropped FK on metrics_counters.instance_id (user totals now survive instance delete)');
+    }
+
     // ── Backfill metrics_counters from hook_events ────────────────────────
     // Runs on every startup to catch events that arrived since the last
     // counter row was written (e.g. after a server restart before the new

@@ -400,8 +400,18 @@ export async function instanceDeregisterRoute(fastify: FastifyInstance): Promise
       // Null out hook_events.instance_id to preserve historical event data
       // while satisfying the FK constraint (foreign_keys = ON).
       db.query('UPDATE hook_events SET instance_id = NULL WHERE instance_id = ?').run(row.id);
-      // Delete all rows that reference this instance (FK constraints enforced).
+      // Roll up metrics_counters into '__deleted__' sentinel before removing the instance,
+      // so user-level totals survive. instance_id has no FK constraint so this is safe.
+      db.query(`
+        INSERT INTO metrics_counters (user_id, instance_id, hour_bucket, metric, value)
+        SELECT user_id, '__deleted__', hour_bucket, metric, SUM(value)
+        FROM metrics_counters
+        WHERE instance_id = ?
+        GROUP BY user_id, hour_bucket, metric
+        ON CONFLICT(user_id, instance_id, hour_bucket, metric) DO UPDATE SET value = value + excluded.value
+      `).run(row.id);
       db.query('DELETE FROM metrics_counters WHERE instance_id = ?').run(row.id);
+      // Delete all rows that reference this instance (FK constraints enforced).
       db.query('DELETE FROM config_snapshots WHERE instance_id = ?').run(row.id);
       db.query('DELETE FROM config_pending WHERE instance_id = ?').run(row.id);
       db.query('DELETE FROM metrics_snapshots WHERE instance_id = ?').run(row.id);
@@ -521,8 +531,18 @@ export async function instanceRoutes(fastify: FastifyInstance): Promise<void> {
       // Null out hook_events.instance_id to preserve historical event data
       // while satisfying the FK constraint (foreign_keys = ON).
       db.query('UPDATE hook_events SET instance_id = NULL WHERE instance_id = ?').run(id);
-      // Delete all rows that reference this instance (FK constraints enforced).
+      // Roll up metrics_counters into '__deleted__' sentinel before removing the instance,
+      // so user-level totals survive. instance_id has no FK constraint so this is safe.
+      db.query(`
+        INSERT INTO metrics_counters (user_id, instance_id, hour_bucket, metric, value)
+        SELECT user_id, '__deleted__', hour_bucket, metric, SUM(value)
+        FROM metrics_counters
+        WHERE instance_id = ?
+        GROUP BY user_id, hour_bucket, metric
+        ON CONFLICT(user_id, instance_id, hour_bucket, metric) DO UPDATE SET value = value + excluded.value
+      `).run(id);
       db.query('DELETE FROM metrics_counters WHERE instance_id = ?').run(id);
+      // Delete all rows that reference this instance (FK constraints enforced).
       db.query('DELETE FROM config_snapshots WHERE instance_id = ?').run(id);
       db.query('DELETE FROM config_pending WHERE instance_id = ?').run(id);
       db.query('DELETE FROM metrics_snapshots WHERE instance_id = ?').run(id);
