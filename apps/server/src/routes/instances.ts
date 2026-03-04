@@ -233,6 +233,7 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
 export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<void> {
   const heartbeatSchema = z.object({
     type: z.enum(['opencode', 'claude-code']),
+    version: z.string().optional(),
   });
 
   fastify.post(
@@ -261,7 +262,7 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
         return reply.code(400).send(error);
       }
 
-      const { type } = parsed.data;
+      const { type, version } = parsed.data;
       const db = fastify.db;
 
       // Find the most-recently-seen instance of this type for this user.
@@ -280,9 +281,16 @@ export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<
       }
 
       const prevStatus = row.status;
-      db.query(
-        `UPDATE instances SET status = 'connected', last_seen = datetime('now') WHERE id = ?`,
-      ).run(row.id);
+      // Update last_seen + status, and refresh the version when the heartbeat includes one.
+      if (version) {
+        db.query(
+          `UPDATE instances SET status = 'connected', last_seen = datetime('now'), version = ? WHERE id = ?`,
+        ).run(version, row.id);
+      } else {
+        db.query(
+          `UPDATE instances SET status = 'connected', last_seen = datetime('now') WHERE id = ?`,
+        ).run(row.id);
+      }
 
       // Only emit SSE if the status actually changed (e.g. was 'disconnected').
       if (prevStatus !== 'connected') {

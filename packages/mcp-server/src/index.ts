@@ -1462,11 +1462,13 @@ async function main() {
   // Heartbeat: keep the instance marked 'connected' every 60 seconds.
   // Without this, idle Claude Code sessions (no hook events for >5 min)
   // would be marked 'disconnected' by the server health checker.
+  // Include the CLI version so it stays current even if detection was slow on startup.
   const heartbeatInterval = setInterval(() => {
     void api("/instances/heartbeat", {
       method: "POST",
       body: JSON.stringify({
         type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
+        version: cliVersion,
       }),
     }).catch(() => {});
   }, 60_000);
