@@ -66,6 +66,7 @@ export function useSSE(onEvent?: SSEHandler): SSEHookResult {
       'mcp.tools.changed',
       'config.updated',
       'config.sync',
+      'instance.updated',
       'connected',
       'heartbeat',
     ];
