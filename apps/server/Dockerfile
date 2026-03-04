@@ -9,11 +9,6 @@ WORKDIR /app
 COPY package.json bun.lock tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/server/package.json ./apps/server/
-COPY apps/web/package.json ./apps/web/
-COPY apps/landing/package.json ./apps/landing/
-COPY apps/mobile/package.json ./apps/mobile/
-COPY packages/mcp-server/package.json ./packages/mcp-server/
-COPY cli/package.json ./cli/
 
 # Install deps — workspace symlinks are created here.
 # --ignore-scripts prevents malicious postinstall hooks from executing during CI builds.
