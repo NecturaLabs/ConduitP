@@ -16,6 +16,7 @@ const PERIOD_BUCKETS: Record<string, number> = {
 };
 
 // ── Shared SQL fragment to exclude subagent sessions ──────────────────────
+// Must match the logic in sessions.ts to keep counts consistent.
 const SUBAGENT_EXCLUSION = `
   AND session_id NOT IN (
     SELECT se.session_id FROM hook_events se
@@ -23,6 +24,11 @@ const SUBAGENT_EXCLUSION = `
       AND se.session_id IS NOT NULL
       AND (json_extract(se.payload, '$.info.parentID') IS NOT NULL
         OR json_extract(se.payload, '$.parentID') IS NOT NULL)
+    UNION
+    SELECT se.session_id FROM hook_events se
+    WHERE se.event_type = 'SessionStart'
+      AND se.session_id IS NOT NULL
+      AND json_extract(se.payload, '$.parent_session_id') IS NOT NULL
   )`;
 
 // ── Shared fragment for instance filtering ────────────────────────────────
@@ -109,8 +115,7 @@ export async function getSummary(
     ? `AND h.session_id IN (
          SELECT session_id FROM hook_events
          WHERE session_id IS NOT NULL
-           AND session_id != 'conduit-config'
-           AND session_id != 'unknown'
+           AND session_id NOT IN ('conduit-config', 'conduit-models', 'unknown')
          GROUP BY session_id
          HAVING MIN(received_at) >= '${periodStart}'
        )`
@@ -120,8 +125,7 @@ export async function getSummary(
     SELECT COUNT(DISTINCT h.session_id) as total
     FROM hook_events h
     WHERE h.session_id IS NOT NULL
-      AND h.session_id != 'conduit-config'
-      AND h.session_id != 'unknown'
+      AND h.session_id NOT IN ('conduit-config', 'conduit-models', 'unknown')
       ${uif.sql}
       ${inf.sql}
       ${SUBAGENT_EXCLUSION}
@@ -139,8 +143,7 @@ export async function getSummary(
       SELECT session_id, MAX(received_at) as last_activity
       FROM hook_events
       WHERE session_id IS NOT NULL
-        AND session_id != 'unknown'
-        AND session_id != 'conduit-config'
+        AND session_id NOT IN ('unknown', 'conduit-config', 'conduit-models')
         ${SUBAGENT_EXCLUSION}
         ${inf.sql}
         ${uif.sql}
