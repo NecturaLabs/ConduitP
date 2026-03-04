@@ -23,6 +23,8 @@ A self-hosted, mobile-first dashboard for monitoring and controlling AI coding a
 - **CI/CD:** `.github/workflows/deploy-frontend.yml` and `deploy-server.yml` trigger on push to `main`
 - **Email sender:** configured via `RESEND_FROM_EMAIL` env var (via Resend)
 - **Monitor CI:** `gh run list --repo NecturaLabs/Conduit --limit 5`
+- **Persistent volume (Dokploy):** The SQLite DB lives at `/app/data/conduit.db` inside the container. Dokploy source-deploy wipes the container on every redeploy — configure a bind mount in Dokploy → service → Advanced → Volumes: host path `/var/lib/conduit/data` → container path `/app/data`. Without this, all sessions and refresh tokens are wiped on every deploy. (The `docker-compose.yml` self-hosted stack already handles this via a named Docker volume.)
+- **Environment variables for builds:** `VITE_API_URL` is injected at Netlify build time (repo variable). `CONDUIT_API_HOST` is a GitHub Actions repo variable used for Android App Links in `build-android.yml`. Neither is committed to the repo.
 
 ## Mobile (Android)
 
@@ -107,10 +109,10 @@ apps/
         sessions.ts                 # List/detail/delete sessions, POST prompt to running session (proxied to agent)
         config.ts                   # GET/PATCH config (proxied to agent), config/pending + config/ack for dashboard-queued updates
         events.ts                   # SSE relay: proxies OpenCode /global/event to authenticated frontend
-        hooks.ts                    # Webhook receiver (Bearer + HMAC-SHA256 + timestamp replay protection), RFC 8628 device flow (approve/poll/install), install/uninstall script generators (bash + PowerShell)
+        hooks.ts                    # Webhook receiver (Bearer + HMAC-SHA256 + timestamp replay protection), RFC 8628 device flow (approve/poll/install), install/uninstall script generators (bash + PowerShell); emits instance.updated SSE on status change
         prompts.ts                  # Prompt relay: POST, SSE polling, acknowledgement; uses EventBus from eventbus.ts
         metrics.ts                  # Summary, timeseries, and dashboard aggregate endpoints
-        instances.ts                # CRUD agent instances, connection test, deregister endpoint (bearer-authed)
+        instances.ts                # CRUD agent instances, connection test (emits SSE after status write), heartbeat (POST /instances/heartbeat — keeps instance connected while idle), deregister endpoint (bearer-authed); DELETE and deregister clean up metrics_counters + hook_events before deleting instance row to satisfy FK constraints
         oauth.ts                    # OAuth 2.0 PKCE: GitHub + GitLab (optional)
       services/
         auth.ts                     # Hand-rolled JWT (HS256), magic link tokens, HMAC signatures, timing-safe comparisons
@@ -130,7 +132,7 @@ apps/
 
   web/                              # @conduit/web — React 19 + Vite Dashboard SPA
     Dockerfile.static               # Multi-stage: build with Bun, output to Alpine for nginx volume
-    .env.production                 # VITE_API_URL
+    # .env.production is gitignored — VITE_API_URL is injected at build time via Netlify env vars / CI
     src/
       main.tsx                      # React root: StrictMode, QueryClient, BrowserRouter (basename=/app)
       main.css                      # Tailwind + all 12 theme CSS files
@@ -145,7 +147,7 @@ apps/
         Metrics.tsx                 # Charts and analytics
         Settings.tsx                # Instances, hook tokens, theme
       components/
-        auth/                       # MagicLinkForm, ProtectedRoute
+        auth/                       # MagicLinkForm, ProtectedRoute (blocks render until first session probe completes via initialValidating state)
         layout/                     # AppLayout, Sidebar, TopBar
         sessions/                   # SessionCard, SessionList
         config/                     # ConfigEditor (CodeMirror)
@@ -205,6 +207,10 @@ packages/
     # Auto-bootstrap on startup:
     #   - Installs OpenCode plugin to ~/.config/opencode/plugins/conduit.js if opencode config dir exists
     #   - Installs Claude Code bash/PS1 hook helper + merges settings.json if ~/.claude exists
+    #   - Calls POST /instances/register with detected instance type
+    #   - Starts 60s heartbeat interval calling POST /instances/heartbeat
+    # Instance type detection priority: CONDUIT_INSTANCE_TYPE env override → OPENCODE=1 → ~/.claude/ exists → 'unknown'
+    # sendConfigSync() and sendModelsSync() are skipped when instance type is 'opencode' (OpenCode handles these natively)
     # Required env vars: CONDUIT_API_URL, CONDUIT_HOOK_TOKEN
     # Optional env vars: CONDUIT_INSTANCE_NAME, CONDUIT_INSTANCE_TYPE, CONDUIT_SKIP_BOOTSTRAP
     # Published to npm as @conduit-ai/mcp-server (bin: conduit-mcp)
@@ -341,3 +347,7 @@ An alternative install method — users add Conduit as an MCP server in their ag
 - GitHub repo: `NecturaLabs/Conduit`.
 - The landing page's `FadeIn` component respects `prefers-reduced-motion` — elements become visible immediately without animation.
 - `scripts/generate-secrets.sh` generates JWT_SECRET, JWT_REFRESH_SECRET, and CONDUIT_HOOK_TOKEN and writes them to `.env`; use it for initial self-hosted setup before running `docker compose up`.
+- SQLite is configured with WAL mode, foreign keys ON, busy_timeout 5000ms, and secure_delete ON (see `apps/server/src/db/index.ts`). No migration to PostgreSQL is planned — WAL SQLite is sufficient for single-server deployments.
+- `formatCost()` in `apps/web/src/lib/utils.ts` is the canonical cost formatter (handles zero-case as `$0.00`). All cost display in `Sessions.tsx` and `Metrics.tsx` uses it — no local duplicates.
+- `apps/web/.env.production` is gitignored. `VITE_API_URL` is injected via Netlify environment variables at build time. Never commit `.env.production`.
+- Android App Links host (`CONDUIT_API_HOST`) is a GitHub Actions repo variable passed to Gradle via `-PCONDUIT_API_HOST`. It replaces the `${conduitApiHost}` placeholder in `AndroidManifest.xml`.
