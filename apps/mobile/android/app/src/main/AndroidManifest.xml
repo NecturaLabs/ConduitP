@@ -22,16 +22,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Android App Links: intercept https://conduit-api.ms-mvp.com/app/auth/verify?token=... -->
+            <!-- Android App Links: intercept https://<CONDUIT_API_HOST>/app/auth/verify?token=... -->
             <!-- autoVerify=true causes Android to verify ownership via /.well-known/assetlinks.json -->
             <!-- This allows magic link emails to open the app directly in all email clients -->
+            <!-- CONDUIT_API_HOST is injected at build time via manifestPlaceholders in build.gradle -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="conduit-api.ms-mvp.com"
+                    android:host="${conduitApiHost}"
                     android:pathPrefix="/app/auth/verify" />
             </intent-filter>
 

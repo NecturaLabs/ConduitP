@@ -38,7 +38,7 @@ import { useConfigQuery, useConfigPatchMutation } from '@/hooks/useConfig';
 import { useModelsQuery } from '@/hooks/useModels';
 import { useInstancesQuery } from '@/hooks/useInstances';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
-import { cn, formatNumber, getInstanceLabel } from '@/lib/utils';
+import { cn, formatNumber, formatCost, getInstanceLabel } from '@/lib/utils';
 import type { SessionMessage, Session, Todo, ToolCall, PendingPrompt } from '@conduit/shared';
 
 // ── Chat commands per instance type ────────────────────────────────────────
@@ -464,7 +464,7 @@ function SessionInfoPanel({
 
   // Summary line shown in the collapsed pill
   const summaryParts: string[] = [];
-  if (hasCost) summaryParts.push(`$${session.cost?.totalCost?.toFixed(4) ?? '0.0000'}`);
+  if (hasCost) summaryParts.push(formatCost(session.cost?.totalCost ?? 0));
   if (hasTodos) {
     const done = todos.filter(t => t.status === 'completed').length;
     summaryParts.push(`${done}/${todos.length} todos`);

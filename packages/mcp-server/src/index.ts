@@ -23,16 +23,40 @@ const { version: PKG_VERSION } = _require("../package.json") as { version: strin
 //
 // Optional:
 //   CONDUIT_INSTANCE_NAME — Human-readable name for this instance (default: hostname)
-//   CONDUIT_INSTANCE_TYPE — Agent type identifier (default: "unknown")
+//   CONDUIT_INSTANCE_TYPE — Agent type override; auto-detected when not set
 //   CONDUIT_SKIP_BOOTSTRAP — Set to "1" to skip auto-installing push hooks
+//
+// Auto-detection priority (when CONDUIT_INSTANCE_TYPE is not set):
+//   1. OPENCODE=1 env var  — OpenCode injects this into every child process it spawns
+//   2. ~/.claude/ exists   — Claude Code's config directory is present
+//   3. fallback            — "unknown"
 // ---------------------------------------------------------------------------
 
 const API_URL = process.env["CONDUIT_API_URL"] ?? "";
 const HOOK_TOKEN = process.env["CONDUIT_HOOK_TOKEN"] ?? "";
 const INSTANCE_NAME =
   process.env["CONDUIT_INSTANCE_NAME"] ?? hostname() ?? "mcp-client";
-const INSTANCE_TYPE = process.env["CONDUIT_INSTANCE_TYPE"] ?? "unknown";
 const SKIP_BOOTSTRAP = process.env["CONDUIT_SKIP_BOOTSTRAP"] === "1";
+
+/**
+ * Detect which agent is running this MCP server.
+ * Priority: explicit env override → OpenCode env signal → Claude Code dir → unknown.
+ */
+function detectInstanceType(): "opencode" | "claude-code" | "unknown" {
+  const explicit = process.env["CONDUIT_INSTANCE_TYPE"];
+  if (explicit === "opencode" || explicit === "claude-code") return explicit;
+
+  // OpenCode sets OPENCODE=1 in the environment of every child process it spawns.
+  // This is the most reliable signal — no process inspection needed.
+  if (process.env["OPENCODE"] === "1") return "opencode";
+
+  // Claude Code creates ~/.claude/ on first run.
+  if (existsSync(join(homedir(), ".claude"))) return "claude-code";
+
+  return "unknown";
+}
+
+const INSTANCE_TYPE = detectInstanceType();
 
 function log(msg: string): void {
   process.stderr.write(`[conduit-mcp] ${msg}\n`);
@@ -1058,7 +1082,7 @@ async function sendConfigSync(): Promise<void> {
     event: "config.sync",
     timestamp: new Date().toISOString(),
     sessionId: "conduit-config",
-    data: { agentType: "claude-code", content: raw },
+    data: { agentType: INSTANCE_TYPE, content: raw },
   });
   const sig = createHmac("sha256", HOOK_TOKEN)
     .update(`${ts}.${body}`)
@@ -1093,7 +1117,7 @@ async function sendModelsSync(models: typeof CLAUDE_MODELS): Promise<void> {
     event: "models.sync",
     timestamp: new Date().toISOString(),
     sessionId: "conduit-models",
-    data: { agentType: 'claude-code', models },
+    data: { agentType: INSTANCE_TYPE, models },
   });
   const sig = createHmac("sha256", HOOK_TOKEN)
     .update(`${ts}.${body}`)
@@ -1346,13 +1370,48 @@ async function main() {
     }
   }
 
-  // Auto-sync config + model catalogue on startup (best-effort, never blocks)
-  void sendConfigSync().catch(() => {});
-  void fetchProviderModels().then(async (providerModels) => {
-    await sendModelsSync(providerModels ?? CLAUDE_MODELS);
-  }).catch(() => {
-    void sendModelsSync(CLAUDE_MODELS);
-  });
+  // Register this instance with Conduit so the dashboard shows the correct type
+  // immediately, without waiting for the first hook event to auto-create it.
+  void api("/instances/register", {
+    method: "POST",
+    body: JSON.stringify({
+      name: INSTANCE_NAME,
+      type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
+      version: PKG_VERSION,
+    }),
+  }).then((res) => {
+    if (res.ok) {
+      log(`Instance registered (type: ${INSTANCE_TYPE})`);
+    } else {
+      log(`Instance registration failed: HTTP ${res.status}`);
+    }
+  }).catch(() => {});
+
+  // Config + model sync: skip when running inside OpenCode — the OpenCode plugin
+  // already handles both natively via its own hooks.
+  if (INSTANCE_TYPE !== "opencode") {
+    void sendConfigSync().catch(() => {});
+    void fetchProviderModels().then(async (providerModels) => {
+      await sendModelsSync(providerModels ?? CLAUDE_MODELS);
+    }).catch(() => {
+      void sendModelsSync(CLAUDE_MODELS);
+    });
+  }
+
+  // Heartbeat: keep the instance marked 'connected' every 60 seconds.
+  // Without this, idle Claude Code sessions (no hook events for >5 min)
+  // would be marked 'disconnected' by the server health checker.
+  const heartbeatInterval = setInterval(() => {
+    void api("/instances/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({
+        type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
+      }),
+    }).catch(() => {});
+  }, 60_000);
+
+  process.on("SIGINT", () => { clearInterval(heartbeatInterval); });
+  process.on("SIGTERM", () => { clearInterval(heartbeatInterval); });
 
   // Start listening for prompt events from the Conduit API
   startPromptStream();

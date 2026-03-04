@@ -2179,7 +2179,11 @@ exit 1
       }
 
       const instanceId = instanceRow.id;
+      const prevBatchStatus = (db.query(`SELECT status FROM instances WHERE id = ?`).get(instanceId) as { status: string } | undefined)?.status;
       db.query(`UPDATE instances SET status = 'connected', last_seen = datetime('now') WHERE id = ?`).run(instanceId);
+      if (prevBatchStatus !== 'connected') {
+        emitInstanceUpdated(db, instanceId);
+      }
 
       // 6. Insert all events + track metrics in a single transaction
       const aggregator = fastify.metricsAggregator;

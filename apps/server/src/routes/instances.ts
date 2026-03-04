@@ -223,6 +223,79 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
 }
 
 /**
+ * Public heartbeat endpoint — called periodically by the MCP server to keep
+ * the instance marked 'connected' during idle sessions (no hook events firing).
+ * Authenticates with the hook token (same as registration). Finds the
+ * most-recently-seen instance of the given type and bumps last_seen + status.
+ */
+export async function instanceHeartbeatRoute(fastify: FastifyInstance): Promise<void> {
+  const heartbeatSchema = z.object({
+    type: z.enum(['opencode', 'claude-code']),
+  });
+
+  fastify.post(
+    '/',
+    { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const resolution = resolveHookTokenUser(request);
+      if (!resolution) {
+        const error: ApiError = {
+          error: 'Unauthorized',
+          message: 'Invalid or missing hook token',
+          statusCode: 401,
+        };
+        return reply.code(401).send(error);
+      }
+
+      const hookUserId = resolution.userId;
+
+      const parsed = heartbeatSchema.safeParse(request.body);
+      if (!parsed.success) {
+        const error: ApiError = {
+          error: 'Validation Error',
+          message: parsed.error.issues.map(i => i.message).join(', '),
+          statusCode: 400,
+        };
+        return reply.code(400).send(error);
+      }
+
+      const { type } = parsed.data;
+      const db = fastify.db;
+
+      // Find the most-recently-seen instance of this type for this user.
+      const query = hookUserId
+        ? `SELECT id, status FROM instances WHERE type = ? AND user_id = ? ORDER BY last_seen DESC LIMIT 1`
+        : `SELECT id, status FROM instances WHERE type = ? ORDER BY last_seen DESC LIMIT 1`;
+      const params = hookUserId ? [type, hookUserId] : [type];
+      const row = db.query(query).get(...params) as { id: string; status: string } | undefined;
+
+      if (!row) {
+        // No instance registered yet — nothing to heartbeat.
+        const response: ApiSuccess<{ message: string }> = {
+          data: { message: 'No instance found for this type' },
+        };
+        return reply.code(200).send(response);
+      }
+
+      const prevStatus = row.status;
+      db.query(
+        `UPDATE instances SET status = 'connected', last_seen = datetime('now') WHERE id = ?`,
+      ).run(row.id);
+
+      // Only emit SSE if the status actually changed (e.g. was 'disconnected').
+      if (prevStatus !== 'connected') {
+        emitInstanceUpdated(db, row.id);
+      }
+
+      const response: ApiSuccess<{ message: string }> = {
+        data: { message: 'Heartbeat received' },
+      };
+      return reply.code(200).send(response);
+    },
+  );
+}
+
+/**
  * Public deregistration endpoint — called by CLI uninstall scripts.
  * Authenticates with the hook token (same as registration). Matches by
  * machine name + type since the script doesn't know the instance UUID.
@@ -449,10 +522,15 @@ export async function instanceRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const newStatus = healthy ? 'connected' : 'disconnected';
+      const prevTestStatus = (row['status'] as string) ?? 'disconnected';
 
       db.query(`
         UPDATE instances SET status = ?, last_seen = datetime('now') WHERE id = ?
       `).run(newStatus, id);
+
+      if (newStatus !== prevTestStatus) {
+        emitInstanceUpdated(db, id);
+      }
 
       const result: ApiSuccess<{ status: string; connected: boolean; latency: number }> = {
         data: { status: newStatus, connected: healthy, latency },

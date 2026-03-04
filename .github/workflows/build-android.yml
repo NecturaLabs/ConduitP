@@ -74,7 +74,7 @@ jobs:
         working-directory: apps/mobile/android
 
       - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon -PCONDUIT_API_HOST=${{ vars.CONDUIT_API_HOST }}
         working-directory: apps/mobile/android
 
       # ── Sign the APK ────────────────────────────────────────────────────────

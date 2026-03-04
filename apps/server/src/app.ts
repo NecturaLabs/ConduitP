@@ -15,7 +15,7 @@ import { configRoutes, configAgentRoutes } from './routes/config.js';
 import { eventRoutes } from './routes/events.js';
 import { hookRoutes } from './routes/hooks.js';
 import { metricsRoutes } from './routes/metrics.js';
-import { instanceRoutes, instanceRegisterRoute, instanceDeregisterRoute } from './routes/instances.js';
+import { instanceRoutes, instanceRegisterRoute, instanceDeregisterRoute, instanceHeartbeatRoute } from './routes/instances.js';
 import { promptRelayRoutes } from './routes/prompts.js';
 import { modelsRoutes } from './routes/models.js';
 import { requireCsrf } from './middleware/auth.js';
@@ -294,6 +294,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
     // Instance deregistration — /instances/deregister (own auth via hook token, no CSRF)
     await api.register(instanceDeregisterRoute, { prefix: '/instances/deregister' });
+
+    // Instance heartbeat — /instances/heartbeat (own auth via hook token, no CSRF)
+    await api.register(instanceHeartbeatRoute, { prefix: '/instances/heartbeat' });
 
     // Config agent endpoints — /config/pending and /config/ack (own auth via bearer token)
     await api.register(configAgentRoutes, { prefix: '/config' });

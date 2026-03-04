@@ -8,7 +8,7 @@ import { InfoTip } from '@/components/ui/InfoTip';
 import { MetricsChart } from '@/components/metrics/MetricsChart';
 import { useMetricsDashboard, useClearMetricsMutation } from '@/hooks/useMetrics';
 import { useInstancesQuery } from '@/hooks/useInstances';
-import { formatNumber, cn } from '@/lib/utils';
+import { formatNumber, formatCost, cn } from '@/lib/utils';
 
 const periods = [
   { value: '1h', label: 'Last hour' },
@@ -17,11 +17,7 @@ const periods = [
   { value: '30d', label: 'Last 30 days' },
 ];
 
-function formatCost(value: number): string {
-  if (value === 0) return '$0.00';
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
-}
+
 
 function NoDataState() {
   return (
