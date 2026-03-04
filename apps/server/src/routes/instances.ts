@@ -153,10 +153,12 @@ export async function instanceRegisterRoute(fastify: FastifyInstance): Promise<v
       const { name, type, url, version } = parsed.data;
       const db = fastify.db;
 
-      // SSRF protection: validate that the instance URL doesn't point to private networks
+      // SSRF protection: validate that the instance URL doesn't point to private networks.
+      // OpenCode always runs on localhost (127.0.0.1:4096) — the server and the agent are
+      // co-located on the user's machine, so loopback addresses are safe to allow here.
       if (url) {
         try {
-          validateUrlNotPrivate(url);
+          validateUrlNotPrivate(url, { allowLoopback: type === 'opencode' });
         } catch (err) {
           const error: ApiError = {
             error: 'Validation Error',

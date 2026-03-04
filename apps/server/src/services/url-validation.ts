@@ -143,6 +143,32 @@ const BLOCKED_HOSTNAMES = new Set([
   'metadata',                        // Common short alias
 ]);
 
+/** Options for {@link validateUrlNotPrivate}. */
+export interface ValidateUrlOptions {
+  /**
+   * When true, loopback addresses (127.x.x.x, ::1, localhost) are permitted.
+   *
+   * Use this when the Conduit server and the target agent are co-located on
+   * the same machine (e.g. OpenCode running on http://127.0.0.1:4096).
+   * The SSRF concern — using the server as a proxy to reach internal
+   * infrastructure — does not apply to the machine the user is already
+   * operating on.
+   */
+  allowLoopback?: boolean;
+}
+
+/** Returns true if the given (already-normalised) IP or hostname is a loopback address. */
+function isLoopback(hostname: string): boolean {
+  const raw = hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname;
+  return (
+    raw === 'localhost' ||
+    raw === '::1' ||
+    raw.startsWith('127.')
+  );
+}
+
 /**
  * Validate that a URL is safe to make outbound requests to.
  * Throws an Error if the URL targets a private/reserved network.
@@ -152,7 +178,7 @@ const BLOCKED_HOSTNAMES = new Set([
  * to a private IP after validation. For production, consider also
  * validating the resolved IP at connect time.
  */
-export function validateUrlNotPrivate(urlString: string): void {
+export function validateUrlNotPrivate(urlString: string, options: ValidateUrlOptions = {}): void {
   let parsed: URL;
   try {
     parsed = new URL(urlString);
@@ -171,6 +197,12 @@ export function validateUrlNotPrivate(urlString: string): void {
   }
 
   const hostname = parsed.hostname.toLowerCase();
+
+  // If the caller explicitly permits loopback, skip all loopback-related checks
+  // before falling through to the broader private-IP checks.
+  if (options.allowLoopback && isLoopback(hostname)) {
+    return;
+  }
 
   // Block well-known private hostnames
   if (BLOCKED_HOSTNAMES.has(hostname)) {

@@ -1276,8 +1276,9 @@ export async function sessionRoutes(fastify: FastifyInstance): Promise<void> {
         // SECURITY (G-05): Re-validate the instance URL at call time to prevent SSRF.
         // Even though the URL was validated when stored, it may have been tampered
         // with in the DB, or the validation rules may have changed.
+        // OpenCode instances are co-located on the user's machine, so loopback is safe.
         try {
-          validateUrlNotPrivate(instanceRow.url);
+          validateUrlNotPrivate(instanceRow.url, { allowLoopback: instanceRow.type === 'opencode' });
         } catch (urlErr) {
           fastify.log.warn({ err: urlErr, instanceId: instanceRow.id, url: instanceRow.url }, 'Instance URL failed SSRF validation at send time');
           const error: ApiError = {

@@ -377,8 +377,15 @@ function startPromptStream(client) {
             else if (line.startsWith("data: ")) data = line.slice(6);
           }
           if (eventType === "prompt.queued" && data) {
-            // A prompt just arrived — inject it immediately
-            injectPendingPrompts(client, null);
+            // A prompt just arrived — inject it immediately.
+            // Pass the sessionId from the event so the prompt is routed to the
+            // correct session rather than auto-discovered (Bug B fix).
+            let queuedSessionId: string | null = null;
+            try {
+              const parsed = JSON.parse(data);
+              queuedSessionId = parsed?.sessionId ?? null;
+            } catch (_) { /* ignore parse errors */ }
+            injectPendingPrompts(client, queuedSessionId);
           }
         }
       }
