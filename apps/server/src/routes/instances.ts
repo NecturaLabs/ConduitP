@@ -348,7 +348,11 @@ export async function instanceDeregisterRoute(fastify: FastifyInstance): Promise
         return reply.code(200).send(response);
       }
 
-      // Clean up config data but preserve hook_events for historical metrics
+      // Null out hook_events.instance_id to preserve historical event data
+      // while satisfying the FK constraint (foreign_keys = ON).
+      db.query('UPDATE hook_events SET instance_id = NULL WHERE instance_id = ?').run(row.id);
+      // Delete all rows that reference this instance (FK constraints enforced).
+      db.query('DELETE FROM metrics_counters WHERE instance_id = ?').run(row.id);
       db.query('DELETE FROM config_snapshots WHERE instance_id = ?').run(row.id);
       db.query('DELETE FROM config_pending WHERE instance_id = ?').run(row.id);
       db.query('DELETE FROM metrics_snapshots WHERE instance_id = ?').run(row.id);
@@ -465,7 +469,11 @@ export async function instanceRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(404).send(error);
       }
 
-      // Clean up config data but preserve hook_events for historical metrics
+      // Null out hook_events.instance_id to preserve historical event data
+      // while satisfying the FK constraint (foreign_keys = ON).
+      db.query('UPDATE hook_events SET instance_id = NULL WHERE instance_id = ?').run(id);
+      // Delete all rows that reference this instance (FK constraints enforced).
+      db.query('DELETE FROM metrics_counters WHERE instance_id = ?').run(id);
       db.query('DELETE FROM config_snapshots WHERE instance_id = ?').run(id);
       db.query('DELETE FROM config_pending WHERE instance_id = ?').run(id);
       db.query('DELETE FROM metrics_snapshots WHERE instance_id = ?').run(id);
