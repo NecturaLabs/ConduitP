@@ -7,8 +7,8 @@ WORKDIR /app
 
 # Copy manifests for dependency resolution
 COPY package.json bun.lock tsconfig.base.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY apps/server/package.json ./apps/server/
+COPY apps/*/package.json ./apps/
+COPY packages/*/package.json ./packages/
 COPY cli/package.json ./cli/
 
 # Install deps — workspace symlinks are created here.
