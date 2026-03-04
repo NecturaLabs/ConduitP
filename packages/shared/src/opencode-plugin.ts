@@ -408,10 +408,21 @@ export const ConduitPlugin = ({ client }) => {
       // Passing it lets the Conduit server use direct HTTP injection (Path A)
       // instead of the unreliable SSE -> poll -> promptAsync chain (Path B).
       const opencodeUrl = process.env["OPENCODE_URL"] ?? null;
+      // Fetch the OpenCode CLI version from its local HTTP API before registering.
+      let version: string | null = null;
+      if (opencodeUrl) {
+        try {
+          const healthResp = await fetch(\`\${opencodeUrl}/global/health\`);
+          if (healthResp.ok) {
+            const health = await healthResp.json();
+            version = health?.version ?? null;
+          }
+        } catch (_) { /* best-effort */ }
+      }
       await fetch(\`\${API_URL}/instances/register\`, {
         method: "POST",
         headers: { "Authorization": \`Bearer \${TOKEN}\`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name, type: "opencode", url: opencodeUrl }),
+        body: JSON.stringify({ name, type: "opencode", url: opencodeUrl, version }),
       });
     } catch (_) { /* best-effort */ }
 

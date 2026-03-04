@@ -58,6 +58,42 @@ function detectInstanceType(): "opencode" | "claude-code" | "unknown" {
 
 const INSTANCE_TYPE = detectInstanceType();
 
+/**
+ * Detect the version of the CLI agent running this MCP server.
+ * - OpenCode:    fetch {OPENCODE_URL}/global/health → .version
+ * - Claude Code: read CLAUDE_CODE_VERSION env var, or spawn `claude --version`
+ * Falls back to the MCP package version if nothing else works.
+ */
+async function detectCliVersion(): Promise<string> {
+  if (INSTANCE_TYPE === "opencode") {
+    const opencodeUrl = process.env["OPENCODE_URL"];
+    if (opencodeUrl) {
+      try {
+        const res = await fetch(`${opencodeUrl}/global/health`);
+        if (res.ok) {
+          const body = await res.json() as { version?: string };
+          if (body.version) return body.version;
+        }
+      } catch { /* fall through */ }
+    }
+  } else {
+    // Claude Code sets CLAUDE_CODE_VERSION in the process environment
+    const envVersion = process.env["CLAUDE_CODE_VERSION"];
+    if (envVersion) return envVersion;
+
+    // Fallback: spawn `claude --version` and parse e.g. "2.1.63 (Claude Code)"
+    try {
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync("claude", ["--version"], { timeout: 3000 });
+      const match = stdout.trim().match(/^(\S+)/);
+      if (match?.[1]) return match[1];
+    } catch { /* fall through */ }
+  }
+  return PKG_VERSION;
+}
+
 function log(msg: string): void {
   process.stderr.write(`[conduit-mcp] ${msg}\n`);
 }
@@ -1395,16 +1431,17 @@ async function main() {
 
   // Register this instance with Conduit so the dashboard shows the correct type
   // immediately, without waiting for the first hook event to auto-create it.
+  const cliVersion = await detectCliVersion();
   void api("/instances/register", {
     method: "POST",
     body: JSON.stringify({
       name: INSTANCE_NAME,
       type: INSTANCE_TYPE === "unknown" ? "claude-code" : INSTANCE_TYPE,
-      version: PKG_VERSION,
+      version: cliVersion,
     }),
   }).then((res) => {
     if (res.ok) {
-      log(`Instance registered (type: ${INSTANCE_TYPE})`);
+      log(`Instance registered (type: ${INSTANCE_TYPE}, version: ${cliVersion})`);
     } else {
       log(`Instance registration failed: HTTP ${res.status}`);
     }
