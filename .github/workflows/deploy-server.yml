@@ -1,13 +1,5 @@
 # CI/CD pipeline for Conduit Backend
-# Builds + type-checks server (CI), then triggers Dokploy to build+deploy from source
-#
-# Required secrets:
-#   DOKPLOY_TOKEN    - Dokploy API token
-#
-# Required variables:
-#   DOKPLOY_API_URL  - Dokploy API base URL (e.g. https://dokploy.example.com/api)
-#   DOKPLOY_APP_ID   - Dokploy application ID for the conduit-api service
-#   DEPLOY_BACKEND   - Set to 'true' to enable Dokploy deploy
+# Builds + type-checks server (CI)
 
 name: Deploy Backend
 
@@ -56,31 +48,3 @@ jobs:
       - name: Type-check server
         working-directory: apps/server
         run: bun run typecheck
-
-      - name: Trigger Dokploy source-deploy
-        if: >-
-          vars.DEPLOY_BACKEND == 'true'
-          && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-          && github.ref == 'refs/heads/main'
-        env:
-          DOKPLOY_TOKEN: ${{ secrets.DOKPLOY_TOKEN }}
-          DOKPLOY_API_URL: ${{ vars.DOKPLOY_API_URL }}
-          DOKPLOY_APP_ID: ${{ vars.DOKPLOY_APP_ID }}
-        run: |
-          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
-            --max-time 30 \
-            -X POST "${DOKPLOY_API_URL}/application.deploy" \
-            -H "x-api-key: ${DOKPLOY_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"applicationId\":\"${DOKPLOY_APP_ID}\"}")
-
-          echo "HTTP status: ${HTTP_STATUS}"
-          echo "Response body:"
-          cat response.json || true
-
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "Dokploy deploy triggered successfully (HTTP ${HTTP_STATUS})"
-          else
-            echo "::error::Dokploy deploy failed (HTTP ${HTTP_STATUS})"
-            exit 1
-          fi

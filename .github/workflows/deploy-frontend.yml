@@ -1,16 +1,11 @@
 # CI/CD pipeline for Conduit Frontend
-# Builds and deploys frontend (landing + web) to Netlify
+# Builds frontend (landing + web)
 #
 # Architecture:
-#   bun install → build landing + web → merge outputs → deploy to Netlify
-#
-# Required repository secrets:
-#   NETLIFY_AUTH_TOKEN - Netlify personal access token (org-level)
+#   bun install → build landing + web → merge outputs
 #
 # Required repository variables:
-#   DEPLOY_FRONTEND  - Set to 'true' to enable Netlify deploy
 #   VITE_API_URL     - API base URL (e.g. https://api.conduit.example.com)
-#   NETLIFY_SITE_ID  - Netlify site ID
 #
 name: Deploy Frontend
 
@@ -45,8 +40,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      deployments: write
-      statuses: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -67,21 +60,3 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_COMMIT_SHA: ${{ github.sha }}
         run: bash scripts/build-netlify.sh
-
-      - name: Deploy to Netlify
-        if: >-
-          vars.DEPLOY_FRONTEND == 'true'
-          && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-          && github.ref == 'refs/heads/main'
-        uses: nwtgck/actions-netlify@v3
-        with:
-          publish-dir: './apps/landing/out'
-          production-deploy: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Deploy from ${{ github.ref_name }} @ ${{ github.sha }}"
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          overwrites-pull-request-comment: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
