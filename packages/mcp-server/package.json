@@ -28,7 +28,7 @@
   "devDependencies": {
     "@conduit/shared": "workspace:*",
     "typescript": "^5.7.0",
-    "@types/node": "^25.3.3"
+    "@types/node": "^25.3.5"
   },
   "files": [
     "dist"
