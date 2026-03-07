@@ -11,7 +11,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY apps/landing/package.json ./apps/landing/package.json
 COPY apps/mobile/package.json ./apps/mobile/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
-COPY packages/mcp-server/package.json ./packages/mcp-server/package.json
+COPY packages/skills/package.json ./packages/skills/package.json
 COPY cli/package.json ./cli/package.json
 
 # Install only server + shared deps (no frozen-lockfile — bun workspace
