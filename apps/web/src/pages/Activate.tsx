@@ -172,7 +172,7 @@ export function Activate() {
               </Button>
 
               <p className="text-sm text-center text-[var(--color-muted)]">
-                This code expires in 5 minutes. If expired, run the install command again.
+                This code expires in 10 minutes. If expired, run the install command again.
               </p>
             </form>
           )}

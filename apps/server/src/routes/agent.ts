@@ -333,29 +333,36 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
 
       const deviceCode = randomUUID();
 
-      // Generate 8 random uppercase consonants, formatted as XXXX-XXXX
-      const CHARSET = 'BCDFGHJKLMNPQRSTVWXZ';
-      let rawCode = '';
-      const buf = randomBytes(16);
-      let i = 0;
-      while (rawCode.length < 8) {
-        const byte = buf[i++ % buf.length]!;
-        rawCode += CHARSET[byte % CHARSET.length];
+      // Generate 8 random uppercase consonants using rejection sampling to avoid
+      // modulo bias. Threshold = largest multiple of CHARSET.length that fits in a byte.
+      const CHARSET = 'BCDFGHJKLMNPQRSTVWXZ'; // 20 chars
+      const threshold = Math.floor(256 / CHARSET.length) * CHARSET.length; // 240
+      const chars: string[] = [];
+      while (chars.length < 8) {
+        const bytes = randomBytes(8);
+        for (const b of bytes) {
+          if (b < threshold) {
+            chars.push(CHARSET[b % CHARSET.length]!);
+            if (chars.length === 8) break;
+          }
+        }
       }
-      const userCode = `${rawCode.slice(0, 4)}-${rawCode.slice(4, 8)}`;
+      // rawCode is stored in DB without a dash; the formatted version is shown to the user
+      const rawCode = chars.join('');
+      const formattedUserCode = `${rawCode.slice(0, 4)}-${rawCode.slice(4)}`;
 
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       db.query(
         `INSERT INTO device_flow_sessions (device_code, user_code, approved, expires_at, user_id, hook_token)
          VALUES (?, ?, 0, ?, NULL, NULL)`,
-      ).run(deviceCode, userCode, expiresAt);
+      ).run(deviceCode, rawCode, expiresAt);
 
       const baseUrl = config.appUrl;
 
       return reply.code(200).send({
         deviceCode,
-        userCode,
+        userCode: formattedUserCode,
         verificationUrl: `${baseUrl}/activate`,
         expiresIn: 600,
         interval: 5,

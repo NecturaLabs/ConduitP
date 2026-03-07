@@ -353,6 +353,14 @@ export function runMigrations(db: Database): void {
       }
     }
 
+    // ── Add attempt_count to device_flow_sessions (C1: brute-force guard) ────
+    // Tracks how many approval attempts have been made for each user code.
+    // The approve endpoint rejects further attempts once this reaches 10.
+    const dfsColumns = db.query(`PRAGMA table_info(device_flow_sessions)`).all() as Array<{ name: string }>;
+    if (dfsColumns.length > 0 && !dfsColumns.some(c => c.name === 'attempt_count')) {
+      db.exec(`ALTER TABLE device_flow_sessions ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0`);
+    }
+
     // ── Prune old metrics_dedup entries (older than 30 days) ──────────────
     // Matches the hook_events retention window in cleanup.ts. Keeping 30 days
     // ensures dedup works correctly even if an instance is offline for weeks.

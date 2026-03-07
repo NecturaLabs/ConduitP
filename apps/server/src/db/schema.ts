@@ -205,13 +205,14 @@ CREATE INDEX IF NOT EXISTS idx_metrics_dedup_hour ON metrics_dedup(hour_bucket);
 -- hook_token is written by /install/approve and read (once) by /install/poll.
 -- Expired rows are pruned inline at the start of /install/device and /install/approve.
 CREATE TABLE IF NOT EXISTS device_flow_sessions (
-  device_code  TEXT PRIMARY KEY,
-  user_code    TEXT NOT NULL UNIQUE,
-  approved     INTEGER NOT NULL DEFAULT 0,
-  expires_at   TEXT NOT NULL,
-  user_id      TEXT REFERENCES users(id),
-  hook_token   TEXT,
-  created_at   TEXT DEFAULT (datetime('now'))
+  device_code   TEXT PRIMARY KEY,
+  user_code     TEXT NOT NULL UNIQUE,
+  approved      INTEGER NOT NULL DEFAULT 0,
+  expires_at    TEXT NOT NULL,
+  user_id       TEXT REFERENCES users(id),
+  hook_token    TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_device_flow_user_code ON device_flow_sessions(user_code);

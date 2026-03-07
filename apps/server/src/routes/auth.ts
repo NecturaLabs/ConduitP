@@ -501,17 +501,32 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(400).send(error);
       }
 
-      // Normalize: uppercase and strip dashes
+      // Normalize: uppercase and strip dashes (stored raw without dash)
       const normalized = rawCode.toUpperCase().replace(/-/g, '');
 
       const db = fastify.db;
+      const userId = request.user!.id;
 
-      const session = db.query(
-        `SELECT device_code FROM device_flow_sessions
-         WHERE user_code = ? AND approved = 0 AND expires_at > datetime('now')`,
-      ).get(normalized) as { device_code: string } | undefined;
+      // Generate a new hook token BEFORE the atomic UPDATE so it can be committed atomically.
+      const newToken = randomBytes(32).toString('hex');
+      const tokenHash = createHash('sha256').update(newToken).digest('hex');
+      const tokenPrefix = newToken.slice(0, 8);
 
-      if (!session) {
+      // Atomic UPDATE: acts as the gate against both double-approval (TOCTOU) and
+      // brute-force (attempt_count < 10). Only one concurrent request will get changes = 1.
+      // Increment attempt_count on every attempt regardless of outcome (done below).
+      const approveResult = db.query(
+        `UPDATE device_flow_sessions
+         SET approved = 1, user_id = ?, hook_token = ?
+         WHERE user_code = ? AND approved = 0 AND expires_at > datetime('now') AND attempt_count < 10`,
+      ).run(userId, newToken, normalized) as { changes: number };
+
+      // Always increment the attempt counter so brute-force attempts are bounded.
+      db.query(
+        `UPDATE device_flow_sessions SET attempt_count = attempt_count + 1 WHERE user_code = ?`,
+      ).run(normalized);
+
+      if (approveResult.changes === 0) {
         const error: ApiError = {
           error: 'Not Found',
           message: 'Invalid or expired code',
@@ -520,22 +535,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(404).send(error);
       }
 
-      const userId = request.user!.id;
-
-      // Generate a new hook token — same pattern as GET /hooks/token
-      const newToken = randomBytes(32).toString('hex');
-      const tokenHash = createHash('sha256').update(newToken).digest('hex');
-      const tokenPrefix = newToken.slice(0, 8);
+      // INSERT the hook token only after we know we won the atomic UPDATE race.
+      // SQLite serializes writes so no second approval can slip through between these two statements.
       db.query(
         `INSERT INTO hook_tokens (id, user_id, token_hash, token_prefix) VALUES (?, ?, ?, ?)`,
       ).run(randomUUID(), userId, tokenHash, tokenPrefix);
-
-      // Mark the device session as approved and store the plaintext token for one-time pickup
-      db.query(
-        `UPDATE device_flow_sessions
-         SET approved = 1, user_id = ?, hook_token = ?
-         WHERE device_code = ?`,
-      ).run(userId, newToken, session.device_code);
 
       return reply.code(200).send({ ok: true });
     },
@@ -556,6 +560,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       db.query('DELETE FROM magic_link_tokens WHERE email = ?').run(userEmail);
       db.query('DELETE FROM oauth_connections WHERE user_id = ?').run(userId);
       db.query('DELETE FROM hook_tokens WHERE user_id = ?').run(userId);
+      db.query('DELETE FROM device_flow_sessions WHERE user_id = ?').run(userId);
       db.query('DELETE FROM revoked_access_tokens WHERE expires_at <= datetime("now")').run(); // best-effort; they expire anyway
 
       // Delete pending_prompts scoped to this user's instances via hook_events.

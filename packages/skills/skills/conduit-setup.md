@@ -47,10 +47,12 @@ Poll GET {CONDUIT_API_URL}/agent/auth/poll?deviceCode={deviceCode} every 5 secon
 
 Use the Bash tool: `sleep 5 && curl -s "{CONDUIT_API_URL}/agent/auth/poll?deviceCode={deviceCode}"`
 
+Poll up to 120 times (10 minutes at 5-second intervals). Keep a count — after 120 polls, consider it timed out.
+
 Continue polling until:
 - Response is `{ "status": "approved", "token": "..." }` → store the token, go to Step 5
 - Response is `{ "status": "expired" }` → tell user "Code expired. Run /conduit-setup again." and stop
-- 10 minutes have passed → tell user "Timed out. Run /conduit-setup again." and stop
+- Poll count reaches 120 → tell user "Timed out. Run /conduit-setup again." and stop
 
 ## Step 5: Store credentials
 
