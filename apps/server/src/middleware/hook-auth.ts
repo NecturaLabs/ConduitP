@@ -108,3 +108,31 @@ export async function requireHookToken(
   // Stash the userId on the request for downstream handlers
   (request as FastifyRequest & { hookTokenUserId?: string | null }).hookTokenUserId = resolution.userId;
 }
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    agentUserId?: string;
+  }
+}
+
+/**
+ * Fastify preHandler hook that requires a valid per-user hook token.
+ * Rejects global/legacy tokens (those that resolve to userId === null).
+ * Sets `request.agentUserId` on success.
+ * Sends a 401 response if the token is missing, invalid, or a global token.
+ */
+export async function requireAgentToken(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const resolution = resolveHookTokenUser(request);
+  if (!resolution || resolution.userId === null) {
+    reply.code(401).send({
+      error: 'Unauthorized',
+      message: 'A valid per-user hook token is required for agent endpoints',
+      statusCode: 401,
+    });
+    return;
+  }
+  request.agentUserId = resolution.userId;
+}
