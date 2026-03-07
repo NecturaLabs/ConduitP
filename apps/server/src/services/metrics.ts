@@ -111,15 +111,16 @@ export async function getSummary(
   // (also used for active sessions query below — declare here to avoid duplicate)
 
   // Period filter for sessions: use first_seen (MIN received_at per session)
-  const sessionPeriodFilter = periodStart
+  const sessionPeriodSql = periodStart
     ? `AND h.session_id IN (
          SELECT session_id FROM hook_events
          WHERE session_id IS NOT NULL
            AND session_id NOT IN ('conduit-config', 'conduit-models', 'unknown')
          GROUP BY session_id
-         HAVING MIN(received_at) >= '${periodStart}'
+         HAVING MIN(received_at) >= ?
        )`
     : '';
+  const sessionPeriodParams = periodStart ? [periodStart] : [];
 
   const totalSessionsRow = db.query(`
     SELECT COUNT(DISTINCT h.session_id) as total
@@ -129,8 +130,8 @@ export async function getSummary(
       ${uif.sql}
       ${inf.sql}
       ${SUBAGENT_EXCLUSION}
-      ${sessionPeriodFilter}
-  `).get(...uif.params, ...inf.params) as { total: number } | null;
+      ${sessionPeriodSql}
+  `).get(...uif.params, ...inf.params, ...sessionPeriodParams) as { total: number } | null;
 
   const totalSessions = totalSessionsRow?.total ?? 0;
 

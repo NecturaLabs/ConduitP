@@ -48,7 +48,7 @@ function deriveSessionStatus(
 ): Session['status'] {
   // Check the most recent status-changing event
   if (lastStatusEvent === 'session.error') return 'error';
-  if (lastStatusEvent === 'Stop') return 'completed';
+  if (lastStatusEvent === 'Stop') return 'idle';
   if (lastStatusEvent === 'session.compacting') return 'compacting';
 
   // Compaction just finished — treat as idle (agent is waiting for user input)
