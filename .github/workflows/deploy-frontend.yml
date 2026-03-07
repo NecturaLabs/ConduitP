@@ -12,19 +12,6 @@ name: Deploy Frontend
 on:
   push:
     branches: [main]
-    paths:
-      - 'apps/web/**'
-      - 'apps/landing/**'
-      - 'packages/shared/**'
-      - 'netlify.toml'
-      - 'scripts/build-netlify.sh'
-      - '.github/workflows/deploy-frontend.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'apps/web/**'
-      - 'apps/landing/**'
-      - 'packages/shared/**'
   workflow_dispatch:
 
 permissions: {}
@@ -70,7 +57,7 @@ jobs:
         with:
           publish-dir: apps/landing/out
           production-branch: main
-          production-deploy: ${{ github.ref == 'refs/heads/main' }}
+          production-deploy: true
           enable-pull-request-comment: false
           enable-commit-comment: false
         env:
