@@ -1,0 +1,23 @@
+{
+  "name": "@conduit-ai/skills",
+  "version": "1.0.0",
+  "description": "Claude Code skills for Conduit session tracking",
+  "type": "module",
+  "bin": {
+    "conduit-skills": "./bin/conduit-skills.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "skills/"
+  ],
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "typescript": "^5.7.0"
+  }
+}
