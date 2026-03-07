@@ -30,11 +30,14 @@ function install(): void {
   const endMarker = '<!-- conduit:end -->';
   const startIdx = existing.indexOf(startMarker);
   const endIdx = existing.indexOf(endMarker);
+  const hasValidBlock = startIdx !== -1 && endIdx !== -1 && startIdx < endIdx;
 
-  if (startIdx !== -1 && endIdx !== -1) {
+  if (hasValidBlock) {
     existing = existing.slice(0, startIdx) + block + existing.slice(endIdx + endMarker.length);
   } else {
-    existing = existing.trimEnd() + (existing ? '\n\n' : '') + block;
+    // Strip any orphaned markers before appending
+    existing = existing.replace(startMarker, '').replace(endMarker, '').trimEnd();
+    existing = existing + (existing ? '\n\n' : '') + block;
   }
 
   writeFileSync(claudeMd, existing);

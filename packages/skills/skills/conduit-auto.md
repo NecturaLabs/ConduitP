@@ -13,7 +13,7 @@ Before responding to each user message:
 
 After completing your response to a user message:
 1. Call POST {CONDUIT_API_URL}/agent/event with:
-   { "type": "message", "sessionId": "{current session id}", "data": { "inputTokens": {n}, "outputTokens": {n}, "model": "{model}" } }
+   { "type": "message", "sessionId": "{current session id}", "data": { "inputTokens": {n}, "outputTokens": {n}, "cacheReadTokens": {n}, "model": "{model}" } }
 
 After each tool use:
 1. Call POST {CONDUIT_API_URL}/agent/event with:
