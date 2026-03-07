@@ -101,7 +101,7 @@ export function Activate() {
           </div>
           <h1 className="text-2xl font-bold text-[var(--color-text)]">Activate Device</h1>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Enter the code shown in your terminal to authorize the Claude Code hook installation.
+            Enter the code shown in your terminal to connect Claude Code to Conduit.
           </p>
         </div>
 

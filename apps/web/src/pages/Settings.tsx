@@ -248,7 +248,7 @@ function PageTabs({ active, onChange }: { active: PageTab; onChange: (id: PageTa
   );
 }
 
-// ── Setup instructions (MCP-only) ─────────────────────────────────────────────
+// ── Setup instructions ────────────────────────────────────────────────────────
 
 type TokenState = 'loading' | 'loaded' | 'error';
 
@@ -268,33 +268,6 @@ function buildOpenCodeMcpConfig(apiUrl: string, token: string): string {
     `      }`,
     `    }`,
   ].join('\n');
-}
-
-/**
- * Claude Code, Cursor, Windsurf, VS Code all use the standard MCP format:
- * "mcpServers" key, command as string, args array, "env" key.
- */
-function buildStandardMcpConfig(apiUrl: string, token: string): string {
-  return [
-    `    "conduit": {`,
-    `      "type": "stdio",`,
-    `      "command": "npx",`,
-    `      "args": ["-y", "@conduit-ai/mcp-server"],`,
-    `      "env": {`,
-    `        "CONDUIT_API_URL": "${apiUrl}",`,
-    `        "CONDUIT_HOOK_TOKEN": "${token}"`,
-    `      }`,
-    `    }`,
-  ].join('\n');
-}
-
-function getMcpConfigForPlatform(platform: string, apiUrl: string, token: string): string {
-  if (platform === 'opencode') return buildOpenCodeMcpConfig(apiUrl, token);
-  return buildStandardMcpConfig(apiUrl, token);
-}
-
-function getMcpParentKey(platform: string): string {
-  return platform === 'opencode' ? '"mcp"' : '"mcpServers"';
 }
 
 // ── Regenerate confirmation modal ─────────────────────────────────────────────
@@ -365,7 +338,7 @@ function SetupInstructions() {
   const [tokenState, setTokenState] = useState<TokenState>('loading');
   const [hookToken, setHookToken] = useState<string | null>(null);
   const [hookPrefix, setHookPrefix] = useState<string>('');
-  const [platformTab, setPlatformTab] = useState('opencode');
+  const [platformTab, setPlatformTab] = useState('claude');
   const [tokenRevealed, setTokenRevealed] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
@@ -429,11 +402,9 @@ function SetupInstructions() {
 
   const displayToken = (hookToken !== null && tokenRevealed) ? hookToken : maskedToken;
 
-  // The real token for copying is always hookToken (full value) when available,
-  // regardless of reveal state. Copy always gets the real value.
-  const mcpConfigDisplay = getMcpConfigForPlatform(platformTab, API_URL, displayToken);
-  const mcpConfigCopy = hookToken !== null ? getMcpConfigForPlatform(platformTab, API_URL, hookToken) : null;
-  const mcpParentKey = getMcpParentKey(platformTab);
+  // OpenCode MCP config values.
+  const openCodeConfigDisplay = buildOpenCodeMcpConfig(API_URL, displayToken);
+  const openCodeConfigCopy = hookToken !== null ? buildOpenCodeMcpConfig(API_URL, hookToken) : null;
 
   return (
     <>
@@ -447,198 +418,180 @@ function SetupInstructions() {
       <CollapsibleCard
         icon={<Plug className="h-4 w-4 text-[var(--color-muted)]" aria-hidden="true" />}
         title="Connect an Agent"
-        description="Add the Conduit MCP server to any MCP-compatible agent or editor — OpenCode, Claude Code, Cursor, Windsurf, VS Code, Copilot, and more."
+        description="Claude Code connects via a one-time skill setup. OpenCode connects via the MCP server."
         defaultOpen={false}
       >
         <div className="flex flex-col gap-5">
-          {/* Token loading / error */}
-          {tokenState === 'loading' && (
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-8 w-32" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          )}
+          <InnerTabs
+            tabs={[
+              { id: 'claude', label: 'Claude Code' },
+              { id: 'opencode', label: 'OpenCode' },
+            ]}
+            active={platformTab}
+            onChange={setPlatformTab}
+          />
 
-          {tokenState === 'error' && (
-            <div className="flex items-start gap-3 rounded-lg border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/6 px-4 py-3">
-              <AlertCircle className="h-4 w-4 text-[var(--color-danger)] shrink-0 mt-0.5" aria-hidden="true" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[var(--color-text)]">Could not load setup token</p>
-                <p className="text-sm text-[var(--color-muted)] mt-0.5">
-                  Your session may have expired or the server is unreachable.
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void loadToken()}
-                className="shrink-0 text-xs h-8"
-              >
-                Retry
-              </Button>
-            </div>
-          )}
-
-          {tokenState === 'loaded' && (
-            <>
-              {/* Step 1: Config block — platform selector + JSON */}
+          {/* Claude Code tab */}
+          {platformTab === 'claude' && (
+            <div className="flex flex-col gap-5">
+              {/* Step 1 */}
               <div className="flex flex-col gap-2.5">
                 <p className="text-sm font-semibold text-[var(--color-text)]">
-                  Step 1 — Add to your MCP client config
+                  Step 1 — Install the skill
                 </p>
-
-                <InnerTabs
-                  tabs={[
-                    { id: 'opencode', label: 'OpenCode' },
-                    { id: 'claude', label: 'Claude Code' },
-                    { id: 'cursor', label: 'Cursor' },
-                    { id: 'windsurf', label: 'Windsurf' },
-                    { id: 'vscode', label: 'VS Code' },
-                  ]}
-                  active={platformTab}
-                  onChange={setPlatformTab}
-                />
-
                 <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-                  Paste the snippet below into the{' '}
-                  <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">
-                    {mcpParentKey}
-                  </code>{' '}
-                  object in your config file. Your hook token is already filled in.
-                  {platformTab === 'claude' && (
-                    <>{' '}<strong className="text-[var(--color-text)]">Windows (non-WSL):</strong>{' '}
-                    replace <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"command": "npx"</code> with{' '}
-                    <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"command": "cmd"</code> and prepend{' '}
-                    <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"/c"</code> to the args array.</>
-                  )}
+                  Copies the Conduit skill files to{' '}
+                  <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">~/.claude/skills/conduit/</code>{' '}
+                  and adds setup instructions to your CLAUDE.md.
                 </p>
+                <CopyBlock command="npx @conduit-ai/skills" />
+              </div>
 
-                <div className="flex items-center gap-1">
-                  <Tooltip text={
-                    hookToken === null
-                      ? 'Token not available — regenerate to reveal'
-                      : tokenRevealed
-                        ? 'Mask the token in the config block below'
-                        : 'Reveal the full token in the config block below'
-                  }>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleToggleReveal}
-                      disabled={hookToken === null || regenerating}
-                      className="text-xs h-9 gap-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)]"
-                      aria-label={tokenRevealed ? 'Hide token' : 'Show token'}
-                    >
-                      {tokenRevealed ? (
-                        <><EyeOff aria-hidden="true" className="h-3.5 w-3.5" /> Hide token</>
-                      ) : (
-                        <><Eye aria-hidden="true" className="h-3.5 w-3.5" /> Show token</>
-                      )}
-                    </Button>
-                  </Tooltip>
+              {/* Step 2 */}
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-[var(--color-border)]">
+                <p className="text-sm font-semibold text-[var(--color-text)]">
+                  Step 2 — Run setup in Claude Code
+                </p>
+                <p className="text-sm text-[var(--color-muted)] leading-relaxed">
+                  Open Claude Code and run this slash command. It will open a browser tab to authenticate
+                  with Conduit, then automatically register your instance and sync your models.
+                </p>
+                <CopyBlock command="/conduit-setup" />
+              </div>
+
+              {/* Info note */}
+              <div className="rounded-lg border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/5 px-4 py-3">
+                <p className="text-sm text-[var(--color-muted)] leading-relaxed">
+                  <strong className="text-[var(--color-text)]">Sessions are tracked automatically.</strong>{' '}
+                  After setup, Claude Code will report sessions, messages, and token usage to Conduit
+                  and check for pending prompts before each response.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* OpenCode tab */}
+          {platformTab === 'opencode' && (
+            <div className="flex flex-col gap-5">
+              {/* Token loading / error */}
+              {tokenState === 'loading' && (
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-8 w-32" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              )}
+
+              {tokenState === 'error' && (
+                <div className="flex items-start gap-3 rounded-lg border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/6 px-4 py-3">
+                  <AlertCircle className="h-4 w-4 text-[var(--color-danger)] shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--color-text)]">Could not load setup token</p>
+                    <p className="text-sm text-[var(--color-muted)] mt-0.5">
+                      Your session may have expired or the server is unreachable.
+                    </p>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setShowRegenConfirm(true)}
-                    disabled={regenerating}
-                    className="text-xs h-9 gap-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)]"
-                    aria-label="Regenerate token"
+                    onClick={() => void loadToken()}
+                    className="shrink-0 text-xs h-8"
                   >
-                    {regenerating ? (
-                      <><RefreshCw aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> Regenerating…</>
-                    ) : (
-                      <><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> Regenerate</>
-                    )}
+                    Retry
                   </Button>
                 </div>
+              )}
 
-                <CopyBlock
-                  command={mcpConfigDisplay}
-                  copyValue={mcpConfigCopy ?? undefined}
-                  copyDisabled={mcpConfigCopy === null}
-                  copyDisabledTitle="Token not yet loaded"
-                  maxHeight="220px"
-                />
-              </div>
+              {tokenState === 'loaded' && (
+                <>
+                  {/* MCP config block */}
+                  <div className="flex flex-col gap-2.5">
+                    <p className="text-sm font-semibold text-[var(--color-text)]">
+                      Step 1 — Add to your OpenCode config
+                    </p>
+                    <p className="text-sm text-[var(--color-muted)] leading-relaxed">
+                      Paste the snippet below into the{' '}
+                      <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"mcp"</code>{' '}
+                      object in your config file. Your hook token is already filled in.
+                    </p>
 
-              {/* Step 2: Config file locations */}
-              <div className="flex flex-col gap-3 pt-3 border-t border-[var(--color-border)]">
-                <p className="text-sm font-semibold text-[var(--color-text)]">Where to paste the config</p>
-                <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-                  Open the config file for your client and add the snippet above inside the{' '}
-                  <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">
-                    {mcpParentKey}
-                  </code>{' '}
-                  object.
-                </p>
-                {platformTab === 'opencode' && (
-                  <div className="flex flex-col gap-1.5">
-                    <code className="font-mono bg-[var(--color-surface)] px-2.5 py-1.5 rounded text-sm text-[var(--color-text)]">
-                      ~/.config/opencode/opencode.json
-                    </code>
-                    <p className="text-sm text-[var(--color-muted)]">
-                      On Windows: <code className="font-mono bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-xs">%USERPROFILE%\.config\opencode\opencode.json</code>
-                    </p>
-                  </div>
-                )}
-                {platformTab === 'claude' && (
-                  <div className="flex flex-col gap-1.5">
-                    <code className="font-mono bg-[var(--color-surface)] px-2.5 py-1.5 rounded text-sm text-[var(--color-text)]">
-                      ~/.claude.json
-                    </code>
-                    <p className="text-sm text-[var(--color-muted)]">
-                      For project-scoped config use <code className="font-mono bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-xs">.mcp.json</code> in the project root instead.
-                      On Windows: <code className="font-mono bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-xs">%USERPROFILE%\.claude.json</code>
-                    </p>
-                  </div>
-                )}
-                {platformTab === 'cursor' && (
-                  <div className="flex flex-col gap-1.5">
-                    <code className="font-mono bg-[var(--color-surface)] px-2.5 py-1.5 rounded text-sm text-[var(--color-text)]">
-                      ~/.cursor/mcp.json
-                    </code>
-                    <p className="text-sm text-[var(--color-muted)]">
-                      On Windows: <code className="font-mono bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-xs">%USERPROFILE%\.cursor\mcp.json</code>
-                    </p>
-                  </div>
-                )}
-                {platformTab === 'windsurf' && (
-                  <div className="flex flex-col gap-1.5">
-                    <code className="font-mono bg-[var(--color-surface)] px-2.5 py-1.5 rounded text-sm text-[var(--color-text)]">
-                      ~/.codeium/windsurf/mcp_config.json
-                    </code>
-                    <p className="text-sm text-[var(--color-muted)]">
-                      On Windows: <code className="font-mono bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-xs">%USERPROFILE%\.codeium\windsurf\mcp_config.json</code>
-                    </p>
-                  </div>
-                )}
-                {platformTab === 'vscode' && (
-                  <div className="flex flex-col gap-1.5">
-                    <code className="font-mono bg-[var(--color-surface)] px-2.5 py-1.5 rounded text-sm text-[var(--color-text)]">
-                      .vscode/mcp.json
-                    </code>
-                    <p className="text-sm text-[var(--color-muted)]">
-                      Per-project file in the workspace root. Also works with GitHub Copilot in VS Code.
-                    </p>
-                  </div>
-                )}
-              </div>
+                    <div className="flex items-center gap-1">
+                      <Tooltip text={
+                        hookToken === null
+                          ? 'Token not available — regenerate to reveal'
+                          : tokenRevealed
+                            ? 'Mask the token in the config block below'
+                            : 'Reveal the full token in the config block below'
+                      }>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleToggleReveal}
+                          disabled={hookToken === null || regenerating}
+                          className="text-xs h-9 gap-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)]"
+                          aria-label={tokenRevealed ? 'Hide token' : 'Show token'}
+                        >
+                          {tokenRevealed ? (
+                            <><EyeOff aria-hidden="true" className="h-3.5 w-3.5" /> Hide token</>
+                          ) : (
+                            <><Eye aria-hidden="true" className="h-3.5 w-3.5" /> Show token</>
+                          )}
+                        </Button>
+                      </Tooltip>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowRegenConfirm(true)}
+                        disabled={regenerating}
+                        className="text-xs h-9 gap-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)]"
+                        aria-label="Regenerate token"
+                      >
+                        {regenerating ? (
+                          <><RefreshCw aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> Regenerating…</>
+                        ) : (
+                          <><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> Regenerate</>
+                        )}
+                      </Button>
+                    </div>
 
-              {/* How it works note */}
-              <div className="rounded-lg border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/5 px-4 py-3 flex flex-col gap-2">
-                <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-                  <strong className="text-[var(--color-text)]">Works with any MCP client.</strong>{' '}
-                  Any agent or editor that supports MCP can use Conduit — just add the config above.
-                  The MCP server provides tools for reporting events, sending prompts, and more.
-                </p>
-                <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-                  <strong className="text-[var(--color-text)]">Bonus for OpenCode & Claude Code:</strong>{' '}
-                  On first run, the MCP server also detects these agents and installs push hooks
-                  that automatically stream session data in real time — no manual setup required.
-                </p>
-              </div>
-            </>
+                    <CopyBlock
+                      command={openCodeConfigDisplay}
+                      copyValue={openCodeConfigCopy ?? undefined}
+                      copyDisabled={openCodeConfigCopy === null}
+                      copyDisabledTitle="Token not yet loaded"
+                      maxHeight="220px"
+                    />
+                  </div>
+
+                  {/* Config file location */}
+                  <div className="flex flex-col gap-3 pt-3 border-t border-[var(--color-border)]">
+                    <p className="text-sm font-semibold text-[var(--color-text)]">Where to paste the config</p>
+                    <p className="text-sm text-[var(--color-muted)] leading-relaxed">
+                      Open the config file and add the snippet above inside the{' '}
+                      <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"mcp"</code>{' '}
+                      object.
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      <code className="font-mono bg-[var(--color-surface)] px-2.5 py-1.5 rounded text-sm text-[var(--color-text)]">
+                        ~/.config/opencode/opencode.json
+                      </code>
+                      <p className="text-sm text-[var(--color-muted)]">
+                        On Windows: <code className="font-mono bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-xs">%USERPROFILE%\.config\opencode\opencode.json</code>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* How it works note */}
+                  <div className="rounded-lg border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/5 px-4 py-3">
+                    <p className="text-sm text-[var(--color-muted)] leading-relaxed">
+                      <strong className="text-[var(--color-text)]">Works with OpenCode.</strong>{' '}
+                      The MCP server provides tools for reporting events, sending prompts, and more.
+                      On first run, it automatically registers your instance and begins streaming session data.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </CollapsibleCard>
@@ -646,59 +599,38 @@ function SetupInstructions() {
   );
 }
 
-// ── Uninstall hooks ───────────────────────────────────────────────────────────
+// ── Disconnect guide ──────────────────────────────────────────────────────────
 
-const uninstallAgentTabs = [
-  { id: 'claude', label: 'Claude Code' },
-  { id: 'opencode', label: 'OpenCode' },
-];
-
-const uninstallOsTabs = [
-  { id: 'bash', label: 'bash' },
-  { id: 'powershell', label: 'PowerShell' },
-];
-
-function UninstallHooks() {
-  const [agentTab, setAgentTab] = useState('claude');
-  const [osTab, setOsTab] = useState('bash');
-
-  const commands: Record<string, Record<string, string>> = {
-    claude: {
-      bash: `curl -fsSL ${API_URL}/hooks/uninstall-claude.sh | bash`,
-      powershell: `irm ${API_URL}/hooks/uninstall-claude.ps1 | iex`,
-    },
-    opencode: {
-      bash: `curl -fsSL ${API_URL}/hooks/uninstall-opencode.sh | bash`,
-      powershell: `irm ${API_URL}/hooks/uninstall-opencode.ps1 | iex`,
-    },
-  };
-
-  const currentCommand = commands[agentTab]?.[osTab] ?? '';
-
+function DisconnectGuide() {
   return (
     <CollapsibleCard
       icon={<Unplug className="h-4 w-4 text-[var(--color-muted)]" aria-hidden="true" />}
-      title="Manage Push Hooks"
-      description="Remove the auto-installed push hooks from OpenCode or Claude Code, or update them by re-running the install command above."
+      title="Disconnect an Agent"
+      description="How to remove Conduit from Claude Code or OpenCode."
       defaultOpen={false}
     >
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2.5">
-          <p className="text-sm font-semibold text-[var(--color-text)]">Uninstall push hook</p>
+          <p className="text-sm font-semibold text-[var(--color-text)]">Claude Code</p>
           <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-            Run the script for your agent and OS. It removes the helper file and deregisters the
-            instance from Conduit.
+            Delete the credentials file and remove the Conduit block from your CLAUDE.md:
           </p>
-          <InnerTabs tabs={uninstallAgentTabs} active={agentTab} onChange={setAgentTab} />
-          <InnerTabs tabs={uninstallOsTabs} active={osTab} onChange={setOsTab} />
-          <CopyBlock command={currentCommand} />
-        </div>
-
-        <div className="rounded-lg border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/5 px-4 py-3">
+          <CopyBlock command={`rm ~/.conduit`} />
           <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-            <strong className="text-[var(--color-text)]">To update:</strong>{' '}
-            Re-run the install command from the "Connect an Agent" section above. The install
-            scripts are idempotent — they overwrite the existing hook with the latest version.
+            Then open{' '}
+            <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">~/.claude/CLAUDE.md</code>
+            {' '}and delete the block between{' '}
+            <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">&lt;!-- conduit:start --&gt;</code>
+            {' '}and{' '}
+            <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">&lt;!-- conduit:end --&gt;</code>.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2.5 pt-3 border-t border-[var(--color-border)]">
+          <p className="text-sm font-semibold text-[var(--color-text)]">OpenCode</p>
+          <p className="text-sm text-[var(--color-muted)] leading-relaxed">
+            Remove the <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"conduit"</code> entry from the{' '}
+            <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">"mcp"</code> object in{' '}
+            <code className="font-mono text-[var(--color-text)] bg-[var(--color-surface)] px-1.5 py-0.5 rounded text-[13px]">~/.config/opencode/opencode.json</code>.
           </p>
         </div>
       </div>
@@ -754,7 +686,7 @@ function ConnectedInstances() {
           </>
         ) : !data?.instances.length ? (
           <p className="text-sm text-[var(--color-muted)] py-8 text-center">
-            No instances registered yet. Install the MCP server above to connect your first agent.
+            No instances registered yet. Follow the setup instructions above to connect your first agent.
           </p>
         ) : (
           data.instances.map((inst) => (
@@ -990,7 +922,7 @@ export function Settings() {
       {activeTab === 'setup' && (
         <>
           <SetupInstructions />
-          <UninstallHooks />
+          <DisconnectGuide />
         </>
       )}
 

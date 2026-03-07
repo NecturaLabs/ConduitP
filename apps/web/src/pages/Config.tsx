@@ -26,7 +26,7 @@ function NoInstanceState() {
               Settings
             </Link>
           </li>
-          <li>Follow the setup instructions to install Conduit on your machine</li>
+          <li>Follow the setup instructions in Settings → Setup to connect your agent</li>
           <li>Start a session — the config file syncs automatically</li>
         </ol>
       </div>

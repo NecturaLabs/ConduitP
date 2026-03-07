@@ -91,7 +91,7 @@ export function Dashboard() {
             <Terminal className="h-4 w-4 text-[var(--color-accent)] shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
             <p className="text-sm text-[var(--color-text)]">
               No agents connected yet.{' '}
-              <span className="text-[var(--color-muted)]">Run a one-liner to register your first instance.</span>
+              <span className="text-[var(--color-muted)]">Go to Settings → Setup to connect Claude Code or OpenCode.</span>
             </p>
           </div>
           <Link
