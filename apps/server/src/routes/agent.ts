@@ -164,7 +164,7 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
         case 'tool.use': {
           eventType = 'PostToolUse';
           const toolName = typeof data['toolName'] === 'string' ? data['toolName'] : '';
-          payload = { tool_name: toolName, ...data };
+          payload = { ...data, tool_name: toolName };
           aggregator.trackToolCall(userId, instanceId, eventId);
           break;
         }
