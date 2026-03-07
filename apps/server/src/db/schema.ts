@@ -146,6 +146,7 @@ CREATE INDEX IF NOT EXISTS idx_metrics_counters_instance ON metrics_counters(ins
 
 CREATE INDEX IF NOT EXISTS idx_metrics_captured ON metrics_snapshots(captured_at);
 CREATE INDEX IF NOT EXISTS idx_pending_prompts_status ON pending_prompts(status);
+CREATE INDEX IF NOT EXISTS idx_pending_prompts_user ON pending_prompts(user_id);
 CREATE INDEX IF NOT EXISTS idx_revoked_access_expires ON revoked_access_tokens(expires_at);
 
 -- Archived sessions — stores session IDs that should be hidden from the default list.
