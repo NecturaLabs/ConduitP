@@ -81,7 +81,7 @@ export function Activate() {
     setErrorMsg('');
 
     try {
-      await api.post('/hooks/install/approve', { user_code: fullCode });
+      await api.post('/auth/device/approve', { userCode: fullCode });
       setStatus('success');
     } catch (err: unknown) {
       const msg =

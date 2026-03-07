@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import type { Database } from 'bun:sqlite';
 import type { ApiError } from '@conduit/shared';
 import { requireAgentToken } from '../middleware/hook-auth.js';
 import { emitInstanceUpdated } from './instances.js';
 import { pricingService } from '../services/pricing.js';
+import { config } from '../config.js';
+import { apiWriteRateLimit } from '../middleware/rateLimit.js';
 
 // ── Helper: find or create the claude-code instance for a user ────────────────
 
@@ -315,4 +317,92 @@ export async function agentRoutes(fastify: FastifyInstance): Promise<void> {
 
     return reply.code(200).send({ ok: true, synced: parsed.data.models.length });
   });
+
+  // ── POST /agent/auth/device ───────────────────────────────────────────────
+  // Initiates a device flow session. No auth required — called before the user
+  // has a token. Returns a user code and device code for polling.
+
+  fastify.post(
+    '/auth/device',
+    { config: { rateLimit: apiWriteRateLimit } },
+    async (_request, reply) => {
+      const db = fastify.db;
+
+      // Prune expired sessions inline to keep the table tidy
+      db.query(`DELETE FROM device_flow_sessions WHERE expires_at <= datetime('now')`).run();
+
+      const deviceCode = randomUUID();
+
+      // Generate 8 random uppercase consonants, formatted as XXXX-XXXX
+      const CHARSET = 'BCDFGHJKLMNPQRSTVWXZ';
+      let rawCode = '';
+      const buf = randomBytes(16);
+      let i = 0;
+      while (rawCode.length < 8) {
+        const byte = buf[i++ % buf.length]!;
+        rawCode += CHARSET[byte % CHARSET.length];
+      }
+      const userCode = `${rawCode.slice(0, 4)}-${rawCode.slice(4, 8)}`;
+
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      db.query(
+        `INSERT INTO device_flow_sessions (device_code, user_code, approved, expires_at, user_id, hook_token)
+         VALUES (?, ?, 0, ?, NULL, NULL)`,
+      ).run(deviceCode, userCode, expiresAt);
+
+      const baseUrl = config.appUrl;
+
+      return reply.code(200).send({
+        deviceCode,
+        userCode,
+        verificationUrl: `${baseUrl}/activate`,
+        expiresIn: 600,
+        interval: 5,
+      });
+    },
+  );
+
+  // ── GET /agent/auth/poll ──────────────────────────────────────────────────
+  // Polls for device flow approval. No auth required — called by the CLI agent
+  // while waiting for the user to approve on the web.
+
+  fastify.get<{ Querystring: { deviceCode?: string } }>(
+    '/auth/poll',
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const { deviceCode } = request.query;
+
+      if (!deviceCode || typeof deviceCode !== 'string') {
+        const error: ApiError = {
+          error: 'Validation Error',
+          message: 'deviceCode query parameter is required',
+          statusCode: 400,
+        };
+        return reply.code(400).send(error);
+      }
+
+      const db = fastify.db;
+
+      const row = db.query(
+        `SELECT device_code, approved, hook_token
+         FROM device_flow_sessions
+         WHERE device_code = ? AND expires_at > datetime('now')`,
+      ).get(deviceCode) as { device_code: string; approved: number; hook_token: string | null } | undefined;
+
+      if (!row) {
+        return reply.code(200).send({ status: 'expired' });
+      }
+
+      if (row.approved === 0) {
+        return reply.code(200).send({ status: 'pending' });
+      }
+
+      // Approved — return the token and delete the row (one-time use)
+      const token = row.hook_token;
+      db.query(`DELETE FROM device_flow_sessions WHERE device_code = ?`).run(deviceCode);
+
+      return reply.code(200).send({ status: 'approved', token });
+    },
+  );
 }

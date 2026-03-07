@@ -1,62 +1,88 @@
 # /conduit-setup Skill
 
-When the user runs /conduit-setup, follow these steps exactly:
+Follow these steps when the user runs /conduit-setup:
 
-## Step 1: Get credentials
+## Step 1: Get API URL
 
-Ask the user:
-"Please provide your Conduit server URL (e.g. https://conduit.example.com):"
+Ask: "What is your Conduit server URL? (e.g. https://conduit.example.com)"
 
-Wait for their answer, then ask:
-"Please provide your Conduit hook token (find this in your dashboard under Settings → Hook Token):"
+Store as CONDUIT_API_URL.
 
-## Step 2: Validate connection
+## Step 2: Check existing credentials
 
-Use the WebFetch tool to call:
-GET {API_URL}/agent/prompts
-Headers: Authorization: Bearer {HOOK_TOKEN}
+Run: `cat ~/.conduit 2>/dev/null`
 
-If the response is not 200, tell the user: "Connection failed. Please check your URL and token." and stop.
+If the file exists and contains an apiUrl and hookToken:
+- Call GET {apiUrl}/agent/prompts with Authorization: Bearer {hookToken}
+- If 200: credentials are valid. Skip to Step 6 (confirm).
+- If not 200: credentials are invalid or expired. Continue to Step 3.
 
-## Step 3: Store credentials
+If the file doesn't exist: continue to Step 3.
 
-Use the Bash tool to run:
+## Step 3: Start device flow
+
+Call POST {CONDUIT_API_URL}/agent/auth/device (no auth headers needed).
+
+Expected response:
+{
+  "deviceCode": "...",
+  "userCode": "BCDF-GHJK",
+  "verificationUrl": "...",
+  "expiresIn": 600,
+  "interval": 5
+}
+
+Tell the user:
+"To connect Claude Code to Conduit:
+1. Visit: {verificationUrl}
+2. Log in to your Conduit account if prompted
+3. Enter this code: {userCode}
+4. Click Approve
+
+I'll wait while you complete this..."
+
+## Step 4: Poll for approval
+
+Poll GET {CONDUIT_API_URL}/agent/auth/poll?deviceCode={deviceCode} every 5 seconds.
+
+Use the Bash tool: `sleep 5 && curl -s "{CONDUIT_API_URL}/agent/auth/poll?deviceCode={deviceCode}"`
+
+Continue polling until:
+- Response is `{ "status": "approved", "token": "..." }` → store the token, go to Step 5
+- Response is `{ "status": "expired" }` → tell user "Code expired. Run /conduit-setup again." and stop
+- 10 minutes have passed → tell user "Timed out. Run /conduit-setup again." and stop
+
+## Step 5: Store credentials
+
+Run:
 ```bash
 cat > ~/.conduit << 'EOF'
 {
-  "apiUrl": "{API_URL}",
-  "hookToken": "{HOOK_TOKEN}"
+  "apiUrl": "CONDUIT_API_URL_VALUE",
+  "hookToken": "TOKEN_VALUE"
 }
 EOF
 chmod 600 ~/.conduit
 ```
+(Replace CONDUIT_API_URL_VALUE and TOKEN_VALUE with the actual values)
 
-## Step 4: Register this instance
+## Step 6: Register this instance
 
-Use the WebFetch tool to call:
-POST {API_URL}/agent/register
-Headers:
-  Authorization: Bearer {HOOK_TOKEN}
-  Content-Type: application/json
-Body: { "name": "{hostname}" }
+Call POST {CONDUIT_API_URL}/agent/register:
+- Authorization: Bearer {hookToken}
+- Content-Type: application/json
+- Body: { "name": "claude-code@{hostname}" }
 
-(Get hostname from: `hostname` bash command)
+Get hostname via: `hostname`
 
-## Step 5: Sync models
+## Step 7: Sync models (optional)
 
-Check if the ANTHROPIC_API_KEY environment variable is set (use Bash: `echo $ANTHROPIC_API_KEY`).
+Check: `echo $ANTHROPIC_API_KEY`
 
-If set, fetch available models:
-GET https://api.anthropic.com/v1/models
-Headers: x-api-key: {ANTHROPIC_API_KEY}, anthropic-version: 2023-06-01
+If set:
+- GET https://api.anthropic.com/v1/models with x-api-key header and anthropic-version: 2023-06-01
+- POST {CONDUIT_API_URL}/agent/models with the model list
 
-Then call:
-POST {API_URL}/agent/models
-Headers: Authorization: Bearer {HOOK_TOKEN}, Content-Type: application/json
-Body: { "models": [ ...array of { "providerId": "anthropic", "modelId": model.id, "modelName": model.display_name } ] }
+## Step 8: Confirm
 
-If ANTHROPIC_API_KEY is not set, skip model sync and note it in the confirmation.
-
-## Step 6: Confirm
-
-Tell the user: "✓ Conduit setup complete! Your Claude Code sessions will now be tracked automatically."
+Say: "✓ Conduit setup complete! Your Claude Code sessions will now be tracked automatically."
