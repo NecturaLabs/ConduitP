@@ -129,10 +129,11 @@
       },
     },
     "packages/skills": {
-      "name": "@conduit-ai/skills",
-      "version": "1.0.0",
+      "name": "@conduit-ai/mcp-server",
+      "version": "0.4.2",
       "bin": {
         "conduit-skills": "./bin/conduit-skills.js",
+        "mcp-server": "./bin/conduit-skills.js",
       },
       "devDependencies": {
         "@types/node": "^25.3.5",
@@ -234,7 +235,7 @@
 
     "@codemirror/view": ["@codemirror/view@6.39.15", "", { "dependencies": { "@codemirror/state": "6.5.4", "crelt": "1.0.6", "style-mod": "4.1.3", "w3c-keyname": "2.2.8" } }, "sha512-aCWjgweIIXLBHh7bY6cACvXuyrZ0xGafjQ2VInjp4RM4gMfscK5uESiNdrH0pE+e1lZr2B4ONGsjchl2KsKZzg=="],
 
-    "@conduit-ai/skills": ["@conduit-ai/skills@workspace:packages/skills"],
+    "@conduit-ai/mcp-server": ["@conduit-ai/mcp-server@workspace:packages/skills"],
 
     "@conduit/cli": ["@conduit/cli@workspace:cli"],
 
