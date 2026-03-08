@@ -32,11 +32,15 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    X-XSS-Protection = "0"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
     # connect-src intentionally restricted to 'self' here as a fallback.
     # The actual CSP with the API origin is injected at build time by
     # scripts/build-netlify.sh using $VITE_API_URL → _headers file.
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+    # Fallback CSP — the real CSP (with computed inline-script hashes replacing
+    # 'unsafe-inline') is injected by scripts/build-netlify.sh into _headers.
+    # This value is only used when Netlify serves the site without that file.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
 
 # Cache Vite hashed assets
 [[headers]]
