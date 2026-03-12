@@ -22,7 +22,7 @@
     "@capacitor/status-bar": "^8.0.1",
     "@codemirror/lang-json": "^6.0.0",
     "@codemirror/language": "^6.12.2",
-    "@codemirror/state": "^6.5.4",
+    "@codemirror/state": "^6.6.0",
     "@conduit/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@tanstack/react-query": "^5.62.0",
